@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { apiFetch } from "@/app/lib/api";
 import { pctLabel, planOf, useBuybackSpotlight } from "@/app/lib/buyback";
+import { buybackSell, yourOfferShares } from "@/app/lib/buyback-plan.mjs";
 import { formatEtTime, getMarketClock, ORDER_BATCH_MS } from "@/app/lib/market-clock";
 import { money } from "@/app/lib/time";
 import { buildTradeConfirmation, getTradeFailureNotice, type TradeConfirmation, type TradeExecutionResult, type TradeFailureNotice, type TradeSide } from "@/app/lib/trade";
@@ -79,17 +80,21 @@ function CashToSpend({ cash, held, margin, total, qty, tooMuch }: { cash: number
   );
 }
 
-/** The buyback on the ticket (buyback-spotlight): today's offer, the step-down, what's left at it. */
-function BuybackNote({ asset }: { asset: MarketAsset }) {
+/**
+ * The buyback on the ticket (buyback-spotlight): today's offer, the step-down, what's left at it.
+ * `held` / `yours`: the seller's shares, and how many of them the offer pays on.
+ */
+function BuybackNote({ asset, held, yours }: { asset: MarketAsset; held: number; yours: number }) {
   const now = useNowEvery(60_000);
   const plan = planOf(asset, now);
   if (!plan) return null;
+  const noneOfYours = held > 0 && yours <= 0;
   return (
     <div className={styles.supplyNote} data-tone="buyback">
       <div className={styles.bbHead}>
         <BuybackPill asset={asset} now={now} size="md" />
         <span>
-          Broker pays <b>{n2(plan.backUnder ? plan.frozen : plan.offer)}</b> a share
+          Broker pays <b>{n2(plan.backUnder || noneOfYours ? plan.frozen : plan.offer)}</b> a share
         </span>
       </div>
       {plan.backUnder ? null : <BuybackMeter steps={plan.steps} endLabel={null} size="sm" />}
@@ -99,6 +104,7 @@ function BuybackNote({ asset }: { asset: MarketAsset }) {
         ) : (
           <>
             <b>{Math.ceil(plan.over).toLocaleString("en-US")}</b> shares left at {pctLabel(plan.pct)}; past those, sells get the frozen {n2(plan.frozen)}.
+            {noneOfYours ? " Yours were bought after the last tick before the buyback, so they get the frozen price." : yours < held ? ` ${Math.ceil(yours).toLocaleString("en-US")} of yours get the offer.` : ""}
             {plan.nextStepAt !== null && plan.nextPct !== null ? ` ${pctLabel(plan.nextPct)} in ${untilText(plan.nextStepAt - now)}.` : ""} No buys until it ends.
           </>
         )}
@@ -108,11 +114,11 @@ function BuybackNote({ asset }: { asset: MarketAsset }) {
 }
 
 /** What the order runs into on the supply side: sold out, the last shares, or a buyback. */
-function SupplyNote({ asset, side, qty }: { asset: MarketAsset; side: TradeSide; qty: number }) {
+function SupplyNote({ asset, side, qty, held, yours }: { asset: MarketAsset; side: TradeSide; qty: number; held: number; yours: number }) {
   const spotlight = useBuybackSpotlight();
   const forSale = asset.shares_for_sale ?? null;
   const max = asset.max_supply ?? null;
-  if (spotlight && asset.trading_state === "buyback" && asset.buyback) return <BuybackNote asset={asset} />;
+  if (spotlight && asset.trading_state === "buyback" && asset.buyback) return <BuybackNote asset={asset} held={held} yours={yours} />;
   if (asset.trading_state === "buyback" && asset.buyback) {
     const bb = asset.buyback;
     const next = bb.next_step_at ? new Date(bb.next_step_at) : null;
@@ -227,12 +233,20 @@ export function TradeTicket({
   const soldOut = !frozen && Boolean(asset.sold_out);
   const buyBlocked = side === "buy" && (frozen || soldOut);
   const toBroker = frozen && side === "sell" && Boolean(asset.buyback);
-  const quote = toBroker && asset.buyback ? asset.buyback.price : side === "buy" ? asset.current_ask_price ?? asset.current_mid_price : asset.current_bid_price ?? asset.current_mid_price;
-  // What a share should fill at: the quote moved by slippage on the order's size (the broker's
-  // buyback price is fixed). The batch still prices it then, after the orders ahead of it.
+  const batchNow = useNowEvery(ORDER_BATCH_MS);
+  const pending = useProfileStore((state) => state.pendingLiveOrders);
+  const queuedSells = pending.filter((order) => order.side === "sell" && order.symbol.toUpperCase() === symbol).reduce((sum, order) => sum + order.requested_quantity, 0);
+  // Selling to the broker: the offer on the shares still over the max that you held before the last
+  // tick ahead of the buyback (less sells you've queued, which fill first), the frozen price on the rest.
+  const brokerPlan = toBroker ? planOf(asset, batchNow) : null;
+  const yours = yourOfferShares({ held: holding?.quantity ?? 0, eligible: holding?.buyback_offer_shares ?? null, queued: queuedSells });
+  const brokerQuote = brokerPlan ? (yours > 0 && brokerPlan.over > 0 ? brokerPlan.offer : brokerPlan.frozen) : asset.buyback?.price;
+  const quote = toBroker ? brokerQuote : side === "buy" ? asset.current_ask_price ?? asset.current_mid_price : asset.current_bid_price ?? asset.current_mid_price;
+  // What a share should fill at: the quote moved by slippage on the order's size (a sale to the
+  // broker has no slippage). The batch still prices it then, after the orders ahead of it.
   const depth = asset.liquidity_depth ?? null;
   const slip = toBroker ? 0 : slippageFraction(qty, depth);
-  const price = quote === null || quote === undefined ? null : toBroker ? quote : fillPrice(side, quote, qty, depth);
+  const price = quote === null || quote === undefined ? null : toBroker ? (brokerPlan ? buybackSell(brokerPlan, qty, yours).price : quote) : fillPrice(side, quote, qty, depth);
   // The fee comes out of Credit first; Cash pays the shares and whatever Credit doesn't cover. A
   // sale also earns a little Credit.
   const { fee, feeFromCredit, total, creditEarned } = orderTotals({
@@ -243,7 +257,7 @@ export function TradeTicket({
     sellCreditRate: portfolio?.economy?.sell_credit_rate ?? 0,
   });
   const tradingOpen = marketStatus?.is_trading_open ?? true;
-  const clock = getMarketClock(useNowEvery(ORDER_BATCH_MS));
+  const clock = getMarketClock(batchNow);
   const batchAt = asset.next_live_order_execute_after ? new Date(asset.next_live_order_execute_after) : clock.nextBatchAt;
   const queuedAhead = asset.pending_live_order_count ?? 0;
   const canSell = (holding?.quantity ?? 0) > 0;
@@ -264,8 +278,6 @@ export function TradeTicket({
   // MAX: the biggest order that goes through. A buy stops at the shares left this tick, the shares
   // for sale and what Cash covers at the slipped ask with the fee; a sale at what you hold that
   // queued sells haven't promised, within the shares left this tick (ALL when that's everything).
-  const pending = useProfileStore((state) => state.pendingLiveOrders);
-  const queuedSells = pending.filter((order) => order.side === "sell" && order.symbol.toUpperCase() === symbol).reduce((sum, order) => sum + order.requested_quantity, 0);
   const maxSell = maxSellShares({ held: holding?.quantity ?? 0, queued: queuedSells, room: Number.isFinite(room) ? room : null });
   const maxBuy =
     portfolio && !frozen && !soldOut
@@ -462,7 +474,7 @@ export function TradeTicket({
                 You hold {(holding?.quantity ?? 0).toLocaleString("en-US")} sh{tooMuch ? " · you don't hold that many" : ""}
               </p>
             ) : null}
-            <SupplyNote asset={asset} side={side} qty={qty} />
+            <SupplyNote asset={asset} side={side} qty={qty} held={holding?.quantity ?? 0} yours={yourOfferShares({ held: holding?.quantity ?? 0, eligible: holding?.buyback_offer_shares ?? null })} />
             <p className={styles.batch} suppressHydrationWarning>
               Fills in the <b>{formatEtTime(batchAt)} ET</b> <Term k="batch">batch</Term>
               {queuedAhead ? ` · ${queuedAhead} order${queuedAhead === 1 ? "" : "s"} queued on ${asset.symbol}` : ""}. The final price is set when the batch executes.

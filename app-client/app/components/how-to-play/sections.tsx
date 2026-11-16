@@ -322,7 +322,7 @@ export function WeeklySection() {
                 {
                   k: "buyback",
                   title: "Too many shares",
-                  body: "If max shares drop below what players hold, the stock freezes: no buys, no ticks. The broker buys at 120% of the frozen price, 10 points less each day.",
+                  body: "If max shares drop below what players hold, the stock freezes: no buys, no ticks. The broker buys at 120% of the frozen price, 10 points less each day. Shares bought after Friday’s Late tick (21:00) get the frozen price.",
                 },
                 { k: "forced", title: "Or else", body: "Whatever's still over at the next Saturday, the broker takes from every holder in proportion, at the base rate." },
               ]),
@@ -342,7 +342,7 @@ export function WeeklySection() {
                 },
                 {
                   title: "The broker buys the extra shares back",
-                  body: "It pays 120% of the frozen price on the first day, then 10 points less each day (never under 50%). Only the shares over the max get the offer, first come first served; sells past them get the frozen price.",
+                  body: "It pays 120% of the frozen price on the first day, then 10 points less each day (never under 50%). Only the shares over the max get the offer, first come first served; sells past them get the frozen price. So do shares bought after Friday’s Late tick (21:00).",
                 },
                 {
                   title: "Holders sell it back, or Saturday does",

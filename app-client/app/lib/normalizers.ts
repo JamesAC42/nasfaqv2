@@ -1250,6 +1250,7 @@ export function normalizePortfolio(value: Record<string, unknown>): PortfolioSum
       current_mid_price: toNumber(item.current_mid_price),
       market_value: Number(toNumber(item.market_value) || 0),
       unrealized_pnl: Number(toNumber(item.unrealized_pnl) || 0),
+      buyback_offer_shares: toNumber(item.buyback_offer_shares),
     })),
   };
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buybackPlan, nextEvaluationAt, nextOpenAt, offerOn, sharesAtOffer, stepsOf } from "./buyback-plan.mjs";
+import { buybackPlan, buybackSell, nextEvaluationAt, nextOpenAt, offerOn, sharesAtOffer, stepsOf, yourOfferShares } from "./buyback-plan.mjs";
 
 // Saturday 2026-11-14 00:00:04 EST, as a weekly evaluation would start one.
 const STARTED = "2026-11-14T05:00:04Z";
@@ -67,4 +67,22 @@ test("the Open and the evaluation in New York time, across the clocks going back
   assert.equal(nextOpenAt(at("2026-11-16T14:00:00Z")), at("2026-11-17T14:00:00Z")); // right at the Open: the next one
   assert.equal(nextEvaluationAt(at("2026-10-30T12:00:00Z")), at("2026-10-31T04:00:00Z")); // EDT
   assert.equal(nextEvaluationAt(at("2026-11-14T05:00:04Z")), at("2026-11-21T05:00:00Z"));
+});
+
+test("a holder's shares at the offer: bought before the cutoff, less queued sells", () => {
+  assert.equal(yourOfferShares({ held: 300 }), 300); // no buyback limit
+  assert.equal(yourOfferShares({ held: 300, eligible: 200 }), 200); // 100 bought after the cutoff
+  assert.equal(yourOfferShares({ held: 300, eligible: 0 }), 0); // all bought after it
+  assert.equal(yourOfferShares({ held: 300, eligible: 200, queued: 150 }), 50);
+  assert.equal(yourOfferShares({ held: 300, eligible: 200, queued: 250 }), 0);
+  assert.equal(yourOfferShares({ held: 100, eligible: 200 }), 100); // never more than held
+});
+
+test("a sell fills at the offer on shares over the max that are yours to sell at it, the frozen price after", () => {
+  const plan = { offer: 12, frozen: 10, over: 600 };
+  assert.equal(buybackSell(plan, 20).price, 12); // held before the cutoff
+  assert.deepEqual(buybackSell(plan, 20, 0), { price: 10, atOffer: 0 }); // bought after it
+  assert.deepEqual(buybackSell(plan, 250, 200), { price: (200 * 12 + 50 * 10) / 250, atOffer: 200 }); // some of each
+  assert.deepEqual(buybackSell({ ...plan, over: 100 }, 300, 300), { price: (100 * 12 + 200 * 10) / 300, atOffer: 100 }); // first come: only the excess
+  assert.deepEqual(buybackSell(plan, 0), { price: 10, atOffer: 0 });
 });

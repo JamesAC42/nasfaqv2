@@ -63,6 +63,37 @@ test("a buyback pays the offer only on shares still over the max", () => {
   assert.equal(supply.buybackFillPrice({ circulating_supply: 990, max_supply: 1000 }, buyback, 10, at), 10); // back under: frozen price
 });
 
+test("the offer pays only on shares held before the cutoff; the rest get the frozen price", () => {
+  const buyback = { frozen_price: 10, started_at: "2026-09-26T04:00:00Z" };
+  const at = new Date("2026-09-26T10:00:00Z"); // day 0: 120%
+  const asset = { circulating_supply: 1600, max_supply: 1000 }; // 600 over
+  const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} vs ${expected}`);
+  // Held before the cutoff: the offer.
+  close(supply.buybackFillPrice(asset, buyback, 20, at, supply.offerSharesFor(300, 0)), 12);
+  // Bought after it: the frozen price.
+  assert.deepEqual(supply.buybackFill(asset, buyback, 20, at, supply.offerSharesFor(300, 300)), { price: 10, atOffer: 0 });
+  // Some of each: 200 held before, 100 after; a sale of 250 gets the offer on 200.
+  const mixed = supply.buybackFill(asset, buyback, 250, at, supply.offerSharesFor(300, 100));
+  assert.equal(mixed.atOffer, 200);
+  close(mixed.price, (200 * 12 + 50 * 10) / 250);
+  // What's left of that holding after the sale (50) is all late: the frozen price.
+  assert.equal(supply.offerSharesFor(50, 100), 0);
+  // First come, first served still caps it at the shares over the max.
+  const capped = supply.buybackFill({ circulating_supply: 1100, max_supply: 1000 }, buyback, 300, at, supply.offerSharesFor(300, 0));
+  assert.equal(capped.atOffer, 100);
+  close(capped.price, (100 * 12 + 200 * 10) / 300);
+});
+
+test("the cutoff is the last tick before the buyback starts: Friday's Late tick for Saturday's", () => {
+  // Saturday 00:00 EDT and EST: Friday 21:00 in New York.
+  assert.equal(supply.offerCutoffBefore(weekly.evaluationStartsAt("2026-09-26")).toISOString(), "2026-09-26T01:00:00.000Z");
+  assert.equal(supply.offerCutoffBefore(weekly.evaluationStartsAt("2026-12-05")).toISOString(), "2026-12-05T02:00:00.000Z");
+  // An on-demand run: the last tick before it, strictly.
+  assert.equal(supply.offerCutoffBefore(new Date("2026-11-16T15:30:00Z")).toISOString(), "2026-11-16T14:00:00.000Z"); // 10:30 EST → Open 09:00
+  assert.equal(supply.offerCutoffBefore(new Date("2026-11-16T14:00:00Z")).toISOString(), "2026-11-16T08:00:00.000Z"); // at the Open → Overnight 03:00
+  assert.equal(supply.offerCutoffBefore(new Date("2026-11-16T07:59:59Z")).toISOString(), "2026-11-16T02:00:00.000Z"); // 02:59 EST → Late 21:00
+});
+
 test("a buyback's public view carries its whole schedule and the shares still over", () => {
   const buyback = { frozen_price: 10, started_at: "2026-09-26T04:00:00Z", target_max_supply: 1000, shares_bought: 30 };
   const asset = { circulating_supply: 1050, max_supply: 1000, treasury_supply: 0, trading_state: "buyback" };

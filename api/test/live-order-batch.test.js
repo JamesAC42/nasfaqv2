@@ -136,6 +136,14 @@ async function buildMarket(pool) {
       [idOf(STOCK_NAMES[name])]
     );
   }
+  // Shares bought after the buybacks' cutoff, which sell at the frozen price: all of one holder's in
+  // three, half of another's.
+  await pool.query(`
+    INSERT INTO market.asset_buyback_late_shares (buyback_id, user_id, late_shares)
+    SELECT b.id, h.user_id, CASE WHEN h.user_id % 3 = 0 THEN h.quantity ELSE h.quantity / 2 END
+    FROM market.asset_buybacks b JOIN market.portfolio_holdings h ON h.asset_id = b.asset_id
+    WHERE h.user_id % 3 <> 2
+  `);
 
   // Queue through the real path, so holds and ledger rows are the ones players get.
   const quantities = [1, 1, 1, 2, 3, 5, 0.5, 1.25, 2.125, 0.1, 7, 13];
@@ -343,6 +351,9 @@ test("the batched live-order settlement", { skip: !databaseUrl, timeout: 600_000
     }
     assert.ok(expected.fills.some((fill) => Number(fill.quantity) !== Math.round(Number(fill.quantity))), "fractional fills");
     assert.ok(expected.buybacks.some((row) => Number(row.shares_bought) > 1.5), "sells into a buyback");
+    const over = Number((await pool.query(`SELECT id FROM market.market_assets WHERE symbol = 'S10'`)).rows[0].id);
+    const intoOver = expected.fills.filter((fill) => Number(fill.asset_id) === over).map((fill) => Number(fill.price));
+    assert.ok(intoOver.some((price) => price === 21.37) && intoOver.some((price) => price > 21.37), "sells over the max at the offer and, bought after the cutoff, at the frozen price");
     assert.ok(expected.ledger.some((row) => row.entry_type === "starter_cash_grant"), "an account opened in passing");
     assert.ok(expected.ledger.some((row) => row.entry_type === "sell_credit"), "sales earned Credit");
     assert.ok(expected.orders.some((order) => order.status === "filled" && Number(order.filled_quantity) === 0.5), "a partial fill");

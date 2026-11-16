@@ -606,8 +606,10 @@ async function executeOrder(pool, {
     const { mid: startingMid, persistentOffset, transientOffset } = startingQuote(asset, fairPrice);
     const liveMidBefore = buyback ? toNumber(asset.current_mid_price, 0) : startingMid;
     const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
+    // In a buyback the offer only pays on shares held before its cutoff (not the ones added after).
+    const late = buyback ? (await supply.lateSharesFor(client, buyback.id, [effectiveUserId])).get(Number(effectiveUserId)) ?? 0 : 0;
     const executablePrice = buyback
-      ? supply.buybackFillPrice(asset, buyback, parsedQuantity, now)
+      ? supply.buybackFillPrice(asset, buyback, parsedQuantity, now, supply.offerSharesFor(holding?.quantity, late))
       : computeExecutionPrice({
           side: effectiveSide,
           bidPrice: quotesBefore.bidPrice,
@@ -1113,8 +1115,11 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
     const { mid: liveMidBefore } = startingQuote(asset, fairPrice);
     const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
     const activeBuyback = asset.trading_state === "buyback" ? await supply.getActiveBuyback(client, asset.id) : null;
+    // Selling into a buyback: the shares the offer still pays on, after the sells already queued (they fill first).
+    const late = activeBuyback ? (await supply.lateSharesFor(client, activeBuyback.id, [userId])).get(Number(userId)) ?? 0 : 0;
+    const queuedFirst = activeBuyback && normalizedSide === "sell" ? await sumPendingSellShares(client, { userId, assetId: asset.id }) : 0;
     const indicativePrice = activeBuyback
-      ? supply.buybackFillPrice(asset, activeBuyback, parsedQuantity, now)
+      ? supply.buybackFillPrice(asset, activeBuyback, parsedQuantity, now, supply.offerSharesFor(toNumber(holding?.quantity, 0) - queuedFirst, late))
       : computeExecutionPrice({
           side: normalizedSide,
           bidPrice: quotesBefore.bidPrice,
@@ -1517,7 +1522,7 @@ function floorNumericAtZero(value) {
  *
  * Mutates the rows it's given. Returns what to write (liveOrderBatch.writeChunk) and to announce.
  */
-function planLiveOrderChunk({ orders, assets, buybacks, accounts, holdings, identities, status, now }) {
+function planLiveOrderChunk({ orders, assets, buybacks, lateShares = new Map(), accounts, holdings, identities, status, now }) {
   const feeRate = getTradingFeeRate();
   const marketDate = status?.last_settlement_market_date || null;
   const fills = [];
@@ -1596,8 +1601,9 @@ function planLiveOrderChunk({ orders, assets, buybacks, accounts, holdings, iden
       const { mid: startingMid, persistentOffset, transientOffset } = startingQuote(asset, fairPrice);
       const liveMidBefore = buyback ? toNumber(asset.current_mid_price, 0) : startingMid;
       const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
+      const late = buyback ? lateShares.get(`${buyback.id}:${userId}`) ?? 0 : 0;
       const executablePrice = buyback
-        ? supply.buybackFillPrice(asset, buyback, parsedQuantity, now)
+        ? supply.buybackFillPrice(asset, buyback, parsedQuantity, now, supply.offerSharesFor(holding?.quantity, late))
         : computeExecutionPrice({ side, bidPrice: quotesBefore.bidPrice, askPrice: quotesBefore.askPrice, quantity: parsedQuantity, liquidityDepth: asset.liquidity_depth });
       if (!(executablePrice > 0)) throw coded("invalid_quote");
 
@@ -2093,12 +2099,16 @@ async function getPortfolioSummary(pool, userId) {
       h.avg_cost_basis,
       a.current_mid_price,
       (h.quantity * COALESCE(a.current_mid_price, 0)) AS market_value,
-      (h.quantity * (COALESCE(a.current_mid_price, 0) - h.avg_cost_basis)) AS unrealized_pnl
+      (h.quantity * (COALESCE(a.current_mid_price, 0) - h.avg_cost_basis)) AS unrealized_pnl,
+      -- In a buyback: how many of these shares can still get the offer (not the ones bought after its cutoff).
+      CASE WHEN bb.id IS NULL THEN NULL ELSE GREATEST(h.quantity - COALESCE(late.late_shares, 0), 0) END AS buyback_offer_shares
     FROM (SELECT $1::bigint AS user_id) me
     LEFT JOIN market.portfolio_cash_balances c ON c.user_id = me.user_id
     LEFT JOIN (
       market.portfolio_holdings h
       JOIN market.market_assets a ON a.id = h.asset_id
+      LEFT JOIN market.asset_buybacks bb ON bb.asset_id = a.id AND bb.status = 'active' AND a.trading_state = 'buyback'
+      LEFT JOIN market.asset_buyback_late_shares late ON late.buyback_id = bb.id AND late.user_id = h.user_id
     ) ON h.user_id = me.user_id
     ORDER BY a.symbol ASC
   `,
@@ -2121,6 +2131,7 @@ async function getPortfolioSummary(pool, userId) {
       current_mid_price: row.current_mid_price,
       market_value: row.market_value,
       unrealized_pnl: row.unrealized_pnl,
+      buyback_offer_shares: row.buyback_offer_shares === null ? null : toNumber(row.buyback_offer_shares, 0),
     }));
   const totalMarketValue = holdings.reduce((sum, row) => sum + toNumber(row.market_value, 0), 0);
   const totalUnrealizedPnl = holdings.reduce((sum, row) => sum + toNumber(row.unrealized_pnl, 0), 0);
