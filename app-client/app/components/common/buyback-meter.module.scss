@@ -1,0 +1,156 @@
+@use "../../styles/mixins" as *;
+
+.meter {
+  --plot: 7.5rem;
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+
+  &[data-size="sm"] {
+    --plot: 4.2rem;
+
+    .bar b {
+      font-size: 0.56rem;
+    }
+
+    .par span {
+      display: none;
+    }
+  }
+}
+
+.plot {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: var(--plot);
+}
+
+.col,
+.days > span {
+  flex: 1 1 0;
+  min-width: 0;
+
+  &[data-state="end"] {
+    flex-grow: 1.8;
+  }
+}
+
+.col {
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+}
+
+.bar {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  min-height: 1.1rem;
+  border: 1px solid var(--blue-line);
+  border-bottom: 0;
+  background: color-mix(in srgb, var(--blue) 10%, transparent);
+  transition: background 0.2s ease;
+
+  b {
+    @include num;
+    padding-top: 0.2rem;
+    color: var(--blue);
+    font-size: 0.64rem;
+    font-weight: 700;
+  }
+
+  .col[data-state="past"] & {
+    border-color: var(--rule-2);
+    background: repeating-linear-gradient(-45deg, transparent 0 4px, color-mix(in srgb, var(--dim) 22%, transparent) 4px 5px);
+
+    b {
+      color: var(--dim);
+      text-decoration: line-through;
+    }
+  }
+
+  .col[data-state="now"] & {
+    border-color: var(--blue);
+    background:
+      repeating-linear-gradient(-45deg, transparent 0 6px, color-mix(in srgb, #fff 18%, transparent) 6px 8px),
+      var(--blue);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--blue) 55%, transparent);
+    animation: glow 2.2s ease-in-out infinite;
+
+    b {
+      color: var(--blue-ink);
+      font-size: 0.78rem;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+}
+
+.endBar {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 1.6rem;
+  border: 1px dashed var(--rule-2);
+  color: var(--dim);
+  font-size: 0.8rem;
+}
+
+// The market price: above it the broker pays more than the stock trades at, below it less.
+.par {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: 0;
+  border-top: 1px dashed var(--text);
+  opacity: 0.8;
+  pointer-events: none;
+
+  span {
+    @include label;
+    position: absolute;
+    right: 0;
+    bottom: 2px;
+    padding: 0 0.25rem;
+    background: var(--ink-2);
+    color: var(--text);
+    font-size: 0.56rem;
+  }
+}
+
+.days {
+  display: flex;
+  gap: 4px;
+
+  span {
+    @include label;
+    overflow: hidden;
+    font-size: 0.56rem;
+    letter-spacing: 0.06em;
+    text-align: center;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  [data-state="now"] {
+    color: var(--blue);
+    font-weight: 700;
+  }
+
+  [data-state="end"] {
+    color: var(--mid);
+  }
+}
+
+@keyframes glow {
+  50% {
+    box-shadow: 0 0 22px color-mix(in srgb, var(--blue) 80%, transparent);
+  }
+}

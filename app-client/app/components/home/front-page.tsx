@@ -8,6 +8,8 @@ import { Oshimark } from "@/app/components/common/oshimark";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { StockChip } from "@/app/components/common/stock-chip";
+import { BuybackBadge } from "@/app/components/common/buyback-badge";
+import { BuybacksNow } from "@/app/components/market/buybacks-now";
 import { SiteShell } from "@/app/components/layout/site-shell";
 import { MARKET_TIME_ZONE } from "@/app/lib/market-clock";
 import { talentAccent } from "@/app/lib/talent-color";
@@ -442,6 +444,7 @@ function HotOnVt() {
                   <i className={styles.hotRank}>{index + 1}</i>
                   <Oshimark icon={asset.icon} symbol={talent.symbol} size={24} />
                   <b>{talent.symbol}</b>
+                  <BuybackBadge symbol={talent.symbol} size="xs" compact />
                   <small>{asset.display_name}</small>
                 </span>
                 <span className={styles.hotNumbers}>
@@ -486,6 +489,7 @@ function ReportColumn({ title, tone, lines, note }: { title: string; tone?: "up"
           <Link key={line.symbol} href={`/stocks/${encodeURIComponent(line.symbol)}`} className={styles.rep} data-peek-stock={line.symbol} prefetch={false}>
             <Oshimark icon={icons.get(line.symbol)} symbol={line.symbol} size={20} />
             <b>{line.symbol}</b>
+            <BuybackBadge symbol={line.symbol} size="xs" compact />
             <span className={styles.fromTo}>
               {line.tag ? (
                 <i className={styles.repTag} title="A big stream lifted this fair value">
@@ -931,6 +935,7 @@ export function FrontPage() {
         <FirstDaysCard />
         <Masthead assets={assets} />
         <TradingPausedBanner className={styles.paused} />
+        <BuybacksNow className={styles.buybacks} />
         <DividendWeekCard />
         <CheckinCard />
         <LiveBand />
