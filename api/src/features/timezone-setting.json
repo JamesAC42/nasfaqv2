@@ -1,0 +1,4 @@
+{
+  "state": "staff",
+  "description": "Show times in New York market time or your own: the Display section of /settings (which then opens to everyone, Notifications staying behind checkin-reminders) and GET/PUT /api/settings/display (404 without the flag), the Settings links in the header, the mobile More sheet and the profile, the one-time \"show them in your time?\" bar for players whose browser isn't on New York time, the zone label on clock times, and How to play's line about switching. Without the flag every time shows as before. Market days, ticks, the check-in reset and the Saturday review stay on New York time either way."
+}

@@ -2185,6 +2185,18 @@ async function applySchema(pool) {
       PRIMARY KEY (user_id, day)
     )
   `);
+
+  // Display settings (services/displaySettings.js, the Display section of /settings): one row per
+  // player who has picked one. time_zone is how clock times show: 'market' (New York market time) or
+  // 'local' (the browser's own zone). NULL, or no row, means they haven't picked, so times show in
+  // New York time and the one-time "show them in your time?" prompt may still ask.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.display_preferences (
+      user_id BIGINT PRIMARY KEY REFERENCES market.users(id) ON DELETE CASCADE,
+      time_zone TEXT NULL CHECK (time_zone IN ('market', 'local')),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
 }
 
 module.exports = { applySchema };
