@@ -1,8 +1,8 @@
 // The Saturday review's last safety net (BBB, relayed by the owner, 2026-11-09): a player left with
 // no shares and no money to buy any gets a little Cash and Credit, to put a foot back in the door.
 // Some will lean on it to gamble, and BBB and the owner accepted that, so there's no anti-abuse here.
-// It's limited anyway: the money leaves them far under the side-mode floor (sideModeFloor.js), so the
-// market is the only place it can go, and holding it means they don't qualify next week.
+// It's limited anyway: side modes spend Credit only, so they can take the bailoutCredit but never the
+// bailoutCash, and holding Cash worth a share means they don't qualify next week.
 //
 // Bricked is worked out after the review's fees, forced buybacks, conversion and new max shares. The
 // player's shares, Cash and Credit are each worth less than one share of the cheapest stock they could

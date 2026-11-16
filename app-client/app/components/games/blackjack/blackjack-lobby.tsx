@@ -110,7 +110,7 @@ export function BlackjackLobbyPage() {
     >
       {!user ? <SignInToPlay what="take a seat. Watching is free" /> : null}
       {loadError && !tables ? <p className={styles.empty}>Couldn&apos;t reach the tables ({loadError}).</p> : null}
-      {limits && limits.blocked !== "net_worth" ? (
+      {limits ? (
         <p className={styles.standing} data-blocked={limits.blocked ? "" : undefined}>
           {blockedText(limits) ?? limitsLine(limits)}
         </p>
@@ -197,7 +197,7 @@ export function BlackjackLobbyPage() {
         </p>
         {rules ? (
           <p className={styles.fine}>
-            Limits: up or down {fmtNumber(rules.weekly_minimum, "$")} a week ({fmtInteger(rules.weekly_rate * 100)}% of your Credit if that&apos;s more), {fmtInteger(rules.hands_per_day)} hands a day, and no bets under {fmtNumber(rules.min_net_worth, "$")} net worth. The week resets Saturday at midnight ET.
+            Limits: up or down {fmtNumber(rules.weekly_minimum, "$")} a week ({fmtInteger(rules.weekly_rate * 100)}% of your Credit if that&apos;s more) and {fmtInteger(rules.hands_per_day)} hands a day. The week resets Saturday at midnight ET.
           </p>
         ) : null}
       </section>

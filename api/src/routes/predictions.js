@@ -60,7 +60,6 @@ const ERROR_STATUS = {
   invalid_pool: 400,
   resolution_note_required: 400,
   in_the_red: 409,
-  net_worth_floor: 403,
   margin_line_exceeded: 409,
   margin_account_too_new: 403,
   account_suspended: 403,
