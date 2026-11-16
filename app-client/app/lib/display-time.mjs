@@ -182,7 +182,7 @@ export function makeTimeFormat({ mode, browserZone = MARKET_TIME_ZONE }) {
   /** @param {LegacyStyle} was */
   const zoneFor = (was) => (mode === "local" || (mode === "legacy" && was === "local") ? localZone : MARKET_TIME_ZONE);
   /** @param {FormatHow} how */
-  const labelled = (how) => {
+  const labeled = (how) => {
     if (how.label === false) return false;
     if (flagged) return true;
     return (how.was ?? "et") === "et";
@@ -214,7 +214,7 @@ export function makeTimeFormat({ mode, browserZone = MARKET_TIME_ZONE }) {
       // A spot that used the browser's language (toLocaleString(undefined, …)) keeps it while the flag is off.
       const text = formatInZone(at, zone, options, mode === "legacy" && how.browserLocale ? undefined : "en-US");
       if (!text || !HAS_CLOCK(options)) return text;
-      const withLabel = labelled(how) ? `${text} ${zoneLabel(zone, at)}` : text;
+      const withLabel = labeled(how) ? `${text} ${zoneLabel(zone, at)}` : text;
       if (how.alongside && flagged && !isMarketZone(zone)) return `${withLabel} (${formatInZone(at, MARKET_TIME_ZONE, CLOCK_24H)} ET)`;
       return withLabel;
     },

@@ -14,7 +14,7 @@ const TICK_NAMES: Record<string, string> = { open: "OPEN", lunch: "LUNCH", late:
 /** `close` is the mid price, the line; `fill` is what the bucket's fills averaged, drawn apart from it. */
 type Point = { t: number; close: number; mark: number | null; volume: number; fill: number | null; up: boolean };
 
-// Intraday ranges show clock times in the display zone (the axis unlabelled, the hover with its
+// Intraday ranges show clock times in the display zone (the axis unlabeled, the hover with its
 // zone); longer ranges are daily buckets keyed by date, so they stay on those dates.
 function fmtTime(tf: TimeFormat, t: number, range: ChartRange, long = false) {
   if (range === "1d") return tf.clock(t, { was: "bare", label: long });

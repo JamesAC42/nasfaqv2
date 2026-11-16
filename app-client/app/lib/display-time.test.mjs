@@ -48,7 +48,7 @@ test("wall clocks and instants in a zone, across daylight saving", () => {
 test("before mount everything is ET, so the server's HTML and the first render agree", () => {
   const tf = makeTimeFormat({ mode: "server", browserZone: "Asia/Tokyo" });
   assert.equal(tf.clock(AT), "09:05 ET");
-  assert.equal(tf.clock(AT, { was: "local" }), "09:05", "a spot that showed the browser's time, still ET and unlabelled");
+  assert.equal(tf.clock(AT, { was: "local" }), "09:05", "a spot that showed the browser's time, still ET and unlabeled");
   assert.equal(tf.clock(AT, { was: "bare" }), "09:05");
   assert.equal(tf.local, false);
 });
