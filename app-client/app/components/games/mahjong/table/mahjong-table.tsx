@@ -602,6 +602,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
     />
   ) : null;
 
+  const clock = me && me.deadline && me.turn_ms !== null && table.speed !== "untimed" && asked && !over ? <MyClock deadline={me.deadline} bank={me.bank} turnMs={me.turn_ms} /> : null;
   const statusLine = (
     <p className={styles.status} data-mine={(myTurn && !over) || (asked && options?.phase === "calls" && !over) || undefined} aria-live="polite">
       {status}
@@ -692,6 +693,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
                   tray={
                     <>
                       {statusLine}
+                      {clock}
                       {actionBar}
                     </>
                   }
@@ -721,7 +723,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
                 {lesson ? <div className={styles.coachInline}><LessonCoach table={table} waiting={!asked || Boolean(over)} /></div> : null}
                 <div className={styles.dock} data-mine={(myTurn && !over) || undefined}>
                 {phone && helpOn && coachUi && !over ? <CoachStrip hand={seatHand} coach={coachUi} selected={selected} closed={closedHand} inRiichi={inRiichi} who={whoOf} myTurn={myTurn} stale={coachStale} /> : null}
-                {me && me.deadline && me.turn_ms !== null && table.speed !== "untimed" && asked && !over ? <MyClock deadline={me.deadline} bank={me.bank} turnMs={me.turn_ms} /> : null}
+                {!use3d ? clock : null}
                 {!use3d ? handView : null}
                 {error ? (
                   <p className={styles.error} role="alert">

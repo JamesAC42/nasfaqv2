@@ -659,7 +659,8 @@
   --ps: 20px;
   height: auto;
   aspect-ratio: 16 / 10;
-  max-height: calc(100dvh - 13rem);
+  // Leaves room under it, on a laptop screen, for the tray's first row of moves and the clock.
+  max-height: calc(100dvh - 17rem);
   min-height: 340px;
 
   @include phone {
@@ -686,6 +687,10 @@
 
   > p {
     margin: 0;
+  }
+
+  > [role="timer"] {
+    flex: 1 1 100%;
   }
 }
 

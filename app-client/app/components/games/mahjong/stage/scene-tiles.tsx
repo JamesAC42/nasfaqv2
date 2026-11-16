@@ -272,7 +272,7 @@ function tileMaterial(atlas: THREE.Texture, back: string) {
         float row = floor(safeCell / ${ATLAS.cols}.0);
         vec2 auv = vec2((col + fuv.x) / ${ATLAS.cols}.0, 1.0 - (row + 1.0 - fuv.y) / ${ATLAS.rows}.0);
         vec3 face = texture2D(uAtlas, auv).rgb;
-        diffuseColor.rgb *= mix(body, face, faceMask) * (1.0 - 0.42 * vDim);
+        diffuseColor.rgb *= mix(body, face, faceMask) * (1.0 - 0.55 * vDim);
         `
       )
       .replace(
@@ -281,7 +281,7 @@ function tileMaterial(atlas: THREE.Texture, back: string) {
         totalEmissiveRadiance += vGlow * uGlowColor * 0.55;`
       );
   };
-  material.customProgramCacheKey = () => "stage-tile-v3";
+  material.customProgramCacheKey = () => "stage-tile-v4";
   return material;
 }
 
@@ -322,11 +322,12 @@ function stepTiles(mesh: THREE.InstancedMesh, tracks: Map<string, Track>, reduce
     cur.scale = from.scale + (to.scale - from.scale) * t;
     // Your tiles: the pointed-at one rises a little toward you, the lifted one more.
     const id = to.mine;
-    const liftTarget = id === undefined ? 0 : selected === id ? 1.5 : hover === id ? 0.6 : 0;
+    // The lesson's tile stands a little proud of the rest too.
+    const liftTarget = id === undefined ? 0 : selected === id ? 1.5 : hover === id ? 0.6 : lit?.has(id) ? 0.35 : 0;
     const nextLift = reduced ? liftTarget : track.lift + (liftTarget - track.lift) * 0.3;
     track.lift = Math.abs(nextLift - liftTarget) < 1e-3 ? liftTarget : nextLift;
     if (track.lift !== liftTarget) moving = true;
-    const glowTarget = (to.glow ?? 0) + track.lift * 0.08 + (id !== undefined && lit?.has(id) ? 0.45 : 0);
+    const glowTarget = (to.glow ?? 0) + track.lift * 0.08 + (id !== undefined && lit?.has(id) ? 0.7 : 0);
     if (Math.abs(glowTarget - track.glow) > 1e-3) {
       track.glow = glowTarget;
       glows.setX(track.slot, glowTarget);

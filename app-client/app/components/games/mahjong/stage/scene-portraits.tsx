@@ -9,7 +9,7 @@
 // A talent without half-body art gets a lit card with their reaction art (or their ticker, if that
 // can't be loaded); while an image loads a plain silhouette stands in.
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { faceMetrics, portraitUrl, type FaceMetrics } from "@/app/components/games/mahjong/stage/art";
@@ -247,7 +247,9 @@ function disposeAll(textures: Iterable<THREE.Texture | undefined>) {
  */
 function usePortraitTextures(symbol: string | null, name: string, color: string, invalidate: () => void): PortraitSet {
   const ensureArt = useArtStore((s) => s.ensureLoaded);
-  const face = faceMetrics(symbol);
+  // Listed art that can't be loaded (not deployed yet, or a host without CORS) falls back to the card.
+  const [missing, setMissing] = useState<string | null>(null);
+  const face = missing === symbol ? null : faceMetrics(symbol);
   const manifestReady = useArtStore((s) => s.manifest !== null);
   useEffect(() => {
     if (!face) ensureArt();
@@ -276,7 +278,10 @@ function usePortraitTextures(symbol: string | null, name: string, color: string,
           invalidate();
         },
         undefined,
-        () => invalidate(),
+        () => {
+          if (mood === "idle" && !holder.disposed) setMissing(symbol);
+          invalidate();
+        },
       );
     }
     return { loaded, holder };
