@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { AssetCoin } from "@/app/components/common/asset-coin";
+import { BuybackBadge } from "@/app/components/common/buyback-badge";
 import type { MarketAsset } from "@/app/lib/types";
 import styles from "@/app/components/common/asset-picker.module.scss";
 
@@ -162,6 +163,7 @@ export function AssetPicker({
                         <span className={styles.optionName}>{asset.display_name}</span>
                         <span className={styles.optionMeta}>{asset.symbol}</span>
                       </span>
+                      <BuybackBadge symbol={asset.symbol} size="xs" />
                     </button>
                   );
                 })}

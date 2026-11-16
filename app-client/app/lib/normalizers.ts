@@ -562,6 +562,7 @@ function normalizeBuyback(value: unknown): MarketBuyback | null {
     price: toNumber(row.price) ?? 0,
     multiplier: toNumber(row.multiplier) ?? 1,
     next_step_at: row.next_step_at ? String(row.next_step_at) : null,
+    start: toNumber(row.start) ?? 1.2,
     daily_step: toNumber(row.daily_step) ?? 0.1,
     floor: toNumber(row.floor) ?? 0.5,
     shares_bought: toNumber(row.shares_bought) ?? 0,
