@@ -145,4 +145,20 @@ test("live orders hold their cash", { skip: !databaseUrl, timeout: 180_000 }, as
   await sell(5);
   assert.equal((await runBatch()).filled, 2);
   close((await wallet()).held, 0, "still nothing held");
+
+  // ── Orders are for whole shares ──
+  for (const quantity of [0.001, 1.5, "2.5"]) await assert.rejects(buy(quantity), { code: "invalid_quantity" }, `buy ${quantity}`);
+  await buy(3);
+  assert.equal((await runBatch()).filled, 1);
+  await assert.rejects(sell(0.5), { code: "invalid_quantity" });
+  // A fraction already held (a partial fill on a nearly sold-out stock can leave one) still sells,
+  // but only as all of what's left, never a piece of it.
+  await pool.query(`UPDATE market.portfolio_holdings SET quantity = 3.25 WHERE user_id = $1 AND asset_id = $2`, [alice, assetId]);
+  await assert.rejects(sell(0.25), { code: "invalid_quantity" });
+  await assert.rejects(sell(2.25), { code: "invalid_quantity" });
+  await sell(1);
+  await assert.rejects(sell(3.25), { code: "invalid_quantity" }, "the queued share isn't part of what's left");
+  await sell(2.25);
+  assert.equal((await runBatch()).filled, 2);
+  assert.equal(Number((await pool.query(`SELECT quantity FROM market.portfolio_holdings WHERE user_id = $1 AND asset_id = $2`, [alice, assetId])).rows[0].quantity), 0);
 });

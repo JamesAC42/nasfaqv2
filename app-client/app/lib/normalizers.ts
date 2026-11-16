@@ -745,9 +745,6 @@ export function normalizeMarketAdjustmentSummary(value: Record<string, unknown>)
       movers: Array.isArray(leaderboards.movers)
         ? (leaderboards.movers as Array<Record<string, unknown>>).map(normalizeAdjustmentOutcome)
         : [],
-      gap_compression: Array.isArray(leaderboards.gap_compression)
-        ? (leaderboards.gap_compression as Array<Record<string, unknown>>).map(normalizeAdjustmentOutcome)
-        : [],
     },
     feed: Array.isArray(value.feed) ? (value.feed as Array<Record<string, unknown>>).map(normalizeAdjustmentOutcome) : [],
     health: normalizeAdjustmentHealth((value.health as Record<string, unknown> | null) || null),
