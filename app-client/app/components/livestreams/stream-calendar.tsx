@@ -20,8 +20,8 @@ import styles from "@/app/components/livestreams/stream-calendar.module.scss";
 // The stream calendar, a mode of the Livestreams page (/livestreams?view=calendar): listed talents'
 // streams for the next week, laid out by day and time in the viewer's own time zone. A week grid on
 // wide screens, a day list on phones. Each stream links to the talent's stock; one with an open peak
-// prediction carries a target mark (and a link on phones).
-// Same data as the stream-peak predictions (GET /api/livestreams/calendar).
+// pool carries a target mark (and a link on phones).
+// Same data as the stream-peak pools (GET /api/livestreams/calendar).
 
 export type CalendarStream = {
   video_id: string;
@@ -34,8 +34,12 @@ export type CalendarStream = {
   display_name: string;
   icon: string | null;
   color: string | null;
-  prediction: { slug: string; title: string } | null;
+  prediction: { slug: string; title: string; pricing: "lmsr" | "pool" } | null;
 };
+
+/** Where a stream's open bet lives: a pool has its own page. */
+const betHref = (prediction: NonNullable<CalendarStream["prediction"]>) =>
+  prediction.pricing === "pool" ? `/predictions/pools/${encodeURIComponent(prediction.slug)}` : `/predictions/${encodeURIComponent(prediction.slug)}`;
 
 type Calendar = { generated_at: string; streams: CalendarStream[] };
 type Day = { key: string; start: number; end: number; date: Date; index: number };
@@ -258,7 +262,7 @@ function UpNextBox({ className, headClass, asideClass }: { className?: string; h
                     <b>{firstName(stream.display_name)}</b>
                     <small>{stream.symbol}</small>
                   </span>
-                  {stream.prediction ? <FaBullseye className={styles.betMark} aria-label="Peak prediction open" /> : <span />}
+                  {stream.prediction ? <FaBullseye className={styles.betMark} aria-label="Peak pool open" /> : <span />}
                   <span className={styles.floorWhen} suppressHydrationWarning>
                     {stream.state === "live" ? "LIVE" : untilLabel(stream.starts_at, now).replace(/^in /, "")}
                     <small>{stream.state === "live" ? (stream.peak_viewers ? `${compactCount(stream.peak_viewers)} peak` : "on air") : timeText(at)}</small>
@@ -309,7 +313,7 @@ function Legend({ bets }: { bets: boolean }) {
       </span>
       {bets ? (
         <span>
-          <FaBullseye className={styles.betMark} /> Peak prediction open
+          <FaBullseye className={styles.betMark} /> Peak pool open
         </span>
       ) : null}
     </div>
@@ -370,7 +374,7 @@ function StripCard({ stream, now, asset }: { stream: CalendarStream; now: number
         </span>
       </Link>
       {stream.prediction ? (
-        <Link href={`/predictions/${encodeURIComponent(stream.prediction.slug)}`} className={styles.betLink} title={stream.prediction.title}>
+        <Link href={betHref(stream.prediction)} className={styles.betLink} title={stream.prediction.title}>
           <FaBullseye aria-hidden="true" /> Bet on the peak
         </Link>
       ) : null}
@@ -379,7 +383,7 @@ function StripCard({ stream, now, asset }: { stream: CalendarStream; now: number
 }
 
 function chipTitle(stream: CalendarStream, at: number, now: number) {
-  return [`${stream.display_name} · ${timeText(at)}`, stateLine(stream, at, now), stream.title, stream.prediction ? "Peak prediction open" : null].filter(Boolean).join("\n");
+  return [`${stream.display_name} · ${timeText(at)}`, stateLine(stream, at, now), stream.title, stream.prediction ? "Peak pool open" : null].filter(Boolean).join("\n");
 }
 
 /** Wide screens: seven day columns, four-hour bands down the side, each stream a chip at its time. */
@@ -459,7 +463,7 @@ function Chip({ stream, now }: { stream: CalendarStream; now: number }) {
         <time dateTime={stream.starts_at ?? undefined}>{stream.state === "live" ? "LIVE" : clockText(at)}</time>
         <b>{firstName(stream.display_name)}</b>
       </span>
-      {stream.prediction ? <FaBullseye className={styles.betMark} aria-label="Peak prediction open" /> : null}
+      {stream.prediction ? <FaBullseye className={styles.betMark} aria-label="Peak pool open" /> : null}
       {stream.state === "ended" && stream.peak_viewers ? <small className={styles.chipPeak}>{compactCount(stream.peak_viewers)}</small> : null}
     </Link>
   );
@@ -504,7 +508,7 @@ function DayList({ day, streams, now, bySymbol, filtering }: { day: Day; streams
                 </span>
               </Link>
               {stream.prediction ? (
-                <Link href={`/predictions/${encodeURIComponent(stream.prediction.slug)}`} className={styles.betLink} title={stream.prediction.title}>
+                <Link href={betHref(stream.prediction)} className={styles.betLink} title={stream.prediction.title}>
                   <FaBullseye aria-hidden="true" /> Bet
                 </Link>
               ) : null}

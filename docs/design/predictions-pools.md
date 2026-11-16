@@ -1,6 +1,6 @@
 # Predictions as pools, with margin (design)
 
-Status: built behind the `prediction-pools` flag (`api/src/features`), at `staff` (2026-11-07). The
+Status: built behind the `prediction-pools` flag (`api/src/features`), which is on for everyone. The
 owner confirmed all five decisions below as recommended. §7 says what the build added or changed.
 
 The ask, from a trusted v1 player via the owner: "V1 plus quality of life things, including

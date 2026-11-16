@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { InTheRed } from "@/app/components/predictions/pool/bet-slip";
 import { money } from "@/app/lib/predictions/format";
-import type { Forecaster, Portfolio } from "@/app/lib/predictions/types";
-import { usePoolAccess } from "@/app/lib/predictions/use-pool-access";
+import type { MyPools } from "@/app/lib/predictions/pools";
+import type { Forecaster } from "@/app/lib/predictions/types";
 import styles from "@/app/components/predictions/floor/floor.module.scss";
 
 const tone = (value: number) => (value > 0.004 ? styles.up : value < -0.004 ? styles.down : styles.flat);
@@ -28,7 +29,9 @@ export function Forecasters({ rows }: { rows: Forecaster[] | null }) {
               <Link href={`/profile/${encodeURIComponent(row.username)}`} className={styles.boardName}>
                 {row.username}
               </Link>
-              <span className={styles.boardMarkets}>{row.markets} mkts</span>
+              <span className={styles.boardMarkets}>
+                {row.markets} {row.markets === 1 ? "pool" : "pools"}
+              </span>
               <span className={`${styles.boardPnl} ${tone(row.pnl)}`}>{signed(row.pnl)}</span>
             </li>
           ))}
@@ -40,7 +43,7 @@ export function Forecasters({ rows }: { rows: Forecaster[] | null }) {
   );
 }
 
-export function MyBetsSummary({ signedIn, portfolio }: { signedIn: boolean; portfolio: Portfolio | null | undefined }) {
+export function MyBetsSummary({ signedIn, pools }: { signedIn: boolean; pools: MyPools | null | undefined }) {
   return (
     <section className={styles.sideBlock} aria-labelledby="mybets-head">
       <header className={styles.sideHead}>
@@ -55,31 +58,36 @@ export function MyBetsSummary({ signedIn, portfolio }: { signedIn: boolean; port
         <p className={styles.sidePrompt}>
           <Link href="/login">Sign in</Link> or <Link href="/register">make an account</Link> to bet. Every account starts with Credit.
         </p>
-      ) : portfolio === undefined ? (
+      ) : pools === undefined ? (
         <p className={styles.sideEmpty}>Loading…</p>
-      ) : portfolio === null ? (
+      ) : pools === null ? (
         <p className={styles.sideEmpty}>Couldn’t load your bets.</p>
       ) : (
         <>
+          {pools.margin.in_red ? (
+            <div className={styles.sideRed}>
+              <InTheRed margin={pools.margin} compact />
+            </div>
+          ) : null}
           <dl className={styles.mine}>
             <div>
-              <dt>Riding</dt>
-              <dd>{money(portfolio.totals.value, 0)}</dd>
+              <dt>In open pools</dt>
+              <dd>{money(pools.totals.staked_open, 0)}</dd>
             </div>
             <div>
-              <dt>Open P&amp;L</dt>
-              <dd className={tone(portfolio.totals.unrealized_pnl)}>{signed(portfolio.totals.unrealized_pnl)}</dd>
+              <dt>Open pools</dt>
+              <dd>{new Set(pools.open.map((row) => row.market_id)).size}</dd>
             </div>
             <div>
-              <dt>Positions</dt>
-              <dd>{new Set(portfolio.positions.map((row) => row.market_id)).size}</dd>
+              <dt>Finished</dt>
+              <dd className={tone(pools.totals.net_settled)}>{signed(pools.totals.net_settled)}</dd>
             </div>
             <div>
-              <dt>Orders</dt>
-              <dd>{portfolio.orders.length}</dd>
+              <dt>{pools.margin.in_red ? "You owe" : "Margin line"}</dt>
+              <dd>{money(pools.margin.in_red ? pools.margin.owed : pools.margin.available, 0)}</dd>
             </div>
           </dl>
-          {portfolio.positions.length === 0 ? <p className={styles.sideNote}>No open bets. Pick a card and make a call.</p> : null}
+          {pools.open.length === 0 ? <p className={styles.sideNote}>No open bets. Pick a card and make a call.</p> : null}
         </>
       )}
     </section>
@@ -87,47 +95,26 @@ export function MyBetsSummary({ signedIn, portfolio }: { signedIn: boolean; port
 }
 
 export function HowItWorks() {
-  // Pools (docs/design/predictions-pools.md), once the prediction-pools flag shows them.
-  const pools = usePoolAccess();
   return (
     <section className={styles.sideBlock} aria-labelledby="how-head">
       <header className={styles.sideHead}>
         <h2 id="how-head">How it works</h2>
       </header>
-      {pools.visible ? (
-        <ul className={styles.how}>
-          <li>
-            <b>Pools.</b> Everyone’s bets on a question go in one pot. When the bookie calls it, the winners split the whole pot by how much they put in. No rake.
-          </li>
-          <li>
-            <b>Odds move</b> with every bet until the pool closes. 3.00× means $1 pays $3 if it closed now.
-          </li>
-          <li>
-            <b>Raise, don’t withdraw.</b> Add to a bet any time it’s open; bets can’t be taken back.
-          </li>
-          <li>
-            <b>Margin.</b> Out of Credit and Cash? Borrow up to 25% of your shares’ value. Until it’s paid back you can’t spend; winnings pay it first.
-          </li>
-          <li>
-            <b>Calls are public.</b> Every result shows who made it and the source. <Link href="/predictions/history">See the history</Link>.
-          </li>
-        </ul>
-      ) : null}
-      <ul className={styles.how} hidden={pools.visible}>
+      <ul className={styles.how}>
         <li>
-          <b>Instant fills.</b> The house always quotes a price. No waiting for a counterparty.
+          <b>Pools.</b> Everyone’s bets on a question go in one pot. When it’s called, the winners split the whole pot by how much they put in. No rake.
         </li>
         <li>
-          <b>Price = chance.</b> Up at 62¢ means the floor thinks 62%.
+          <b>Odds move</b> with every bet until the pool closes. 3.00× means $1 pays $3 if it closed right then.
         </li>
         <li>
-          <b>$1 a share</b> if you’re right, $0 if you’re not. Sell any time before close.
+          <b>Raise, don’t withdraw.</b> Add to a bet any time it’s open; bets can’t be taken back.
         </li>
         <li>
-          <b>Auto markets</b> open on the Lunch tick and a few scheduled streams, close before the result can be known, and settle themselves.
+          <b>Margin.</b> Out of Credit? Borrow up to 25% of your shares’ value. It never touches your cash, and until it’s paid back you can’t bet or spend Credit. Stocks stay open.
         </li>
         <li>
-          <b>Calls are public.</b> Every result gets a dispute window. Think it’s wrong? Say so.
+          <b>Calls are public.</b> Every result shows who made it and the source. <Link href="/predictions/history">See the history</Link>.
         </li>
       </ul>
     </section>

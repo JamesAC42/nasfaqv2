@@ -5,6 +5,7 @@ import { ErrorLine, useRun } from "@/app/components/predictions/admin/staff-part
 import { updateTemplate } from "@/app/lib/predictions/api";
 import { TEMPLATE_LABEL, money, timeAgo } from "@/app/lib/predictions/format";
 import type { AutoTemplate } from "@/app/lib/predictions/types";
+import { usePoolAccess } from "@/app/lib/predictions/use-pool-access";
 import styles from "@/app/components/predictions/admin/admin-console.module.scss";
 
 // Auto templates (spec §6): on/off, and the params the API accepts. Each shows its last run and what
@@ -27,6 +28,8 @@ const INFO: Record<string, { example: string; fields: string[]; outcomes: (param
   },
   "top-gainer-pool": { example: "Top gainer on the Lunch tick? (pool)", fields: ["count"], outcomes: (params) => (params.count ?? 6) + 1 },
 };
+
+const POOL_TEMPLATES = new Set(["stream-peak-pool", "top-gainer-pool"]);
 
 const FIELD: Record<string, { label: string; hint: string; min: number; max: number; step: number }> = {
   count: { label: "Talents", hint: "K most active", min: 1, max: 20, step: 1 },
@@ -98,7 +101,7 @@ function TemplateRow({ template, liveCount, now, onChanged }: { template: AutoTe
           role="switch"
           aria-checked={on}
           aria-label={`${TEMPLATE_LABEL[template.key] ?? template.key} ${on ? "on" : "off"}`}
-          title="Off stops new markets and shuts betting on any still open. They still settle."
+          title="Off stops new pools and shuts betting on any still open. They still settle."
           className={styles.switch}
           disabled={busy === "toggle"}
           onClick={() => void toggle()}
@@ -139,7 +142,7 @@ function TemplateRow({ template, liveCount, now, onChanged }: { template: AutoTe
           <dd>{template.last_run_at ? `${timeAgo(template.last_run_at, now)} ago` : "never"}</dd>
         </div>
       </dl>
-      <p className={styles.templateResult}>{on ? resultText(template.last_result) : "Off: no new markets, and betting is shut on any still open. They still settle."}</p>
+      <p className={styles.templateResult}>{on ? resultText(template.last_result) : "Off: nothing new opens, and betting is shut on any still open. They still settle."}</p>
       <ErrorLine error={error} />
       {dirty ? (
         <div className={styles.templateSave}>
@@ -149,7 +152,7 @@ function TemplateRow({ template, liveCount, now, onChanged }: { template: AutoTe
           <button type="button" className={styles.btnGhostSmall} disabled={Boolean(busy)} onClick={() => setDraft({})}>
             Reset
           </button>
-          <span>Applies to the next markets it opens.</span>
+          <span>Applies to the next ones it opens.</span>
         </div>
       ) : null}
     </form>
@@ -157,12 +160,15 @@ function TemplateRow({ template, liveCount, now, onChanged }: { template: AutoTe
 }
 
 export function TemplatePanel({ templates, liveByTemplate, now, onChanged }: { templates: AutoTemplate[]; liveByTemplate: Record<string, number>; now: number; onChanged: () => void }) {
+  // With pools on, the API won't turn a market-maker template on: only one still on needs a switch.
+  const { visible: poolsOn } = usePoolAccess();
+  const shown = poolsOn ? templates.filter((template) => POOL_TEMPLATES.has(template.key) || template.enabled) : templates;
   return (
     <div className={styles.templates}>
-      {templates.map((template) => (
+      {shown.map((template) => (
         <TemplateRow key={`${template.key}-${template.enabled}-${JSON.stringify(template.params)}`} template={template} liveCount={liveByTemplate[template.key] ?? 0} now={now} onChanged={onChanged} />
       ))}
-      {!templates.length ? <p className={styles.empty}>No auto templates set up.</p> : null}
+      {!shown.length ? <p className={styles.empty}>No auto templates set up.</p> : null}
     </div>
   );
 }

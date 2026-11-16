@@ -108,7 +108,7 @@ export function FinePrint() {
   return (
     <footer className={styles.fine}>
       <p>
-        <b>Play money only.</b>{" "}NASFAQ is a fan-made game. Cash, stocks, cards and prediction shares have no real-world value and can&apos;t be bought, sold or
+        <b>Play money only.</b>{" "}NASFAQ is a fan-made game. Cash, stocks, cards and prediction bets have no real-world value and can&apos;t be bought, sold or
         withdrawn. Not affiliated with or endorsed by COVER Corporation or hololive production. Prices follow public YouTube data and player trades; nothing here is a
         statement about any real person.
       </p>

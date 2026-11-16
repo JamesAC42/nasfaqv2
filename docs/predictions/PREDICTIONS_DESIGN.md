@@ -1,6 +1,8 @@
 # NASFAQ predictions — design
 
-Status: in build (September 2026). Replaces the order-book design in `PREDICTION_MARKET_DESIGN.md`
+Status: retired. Prediction pools (`docs/design/predictions-pools.md`) replace the market maker: no
+new markets open this way, and this code stays only for markets left open and for history. Written
+September 2026. Replaces the order-book design in `PREDICTION_MARKET_DESIGN.md`
 for trading and resolution; the schema, permissions, comments and websocket from that build are
 kept and extended. Code comments point back here.
 
