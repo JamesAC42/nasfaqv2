@@ -1115,9 +1115,11 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
     const { mid: liveMidBefore } = startingQuote(asset, fairPrice);
     const quotesBefore = computeQuotes(liveMidBefore, asset.spread_bps);
     const activeBuyback = asset.trading_state === "buyback" ? await supply.getActiveBuyback(client, asset.id) : null;
+    // Selling into a buyback: the shares the offer still pays on, after the sells already queued (they fill first).
     const late = activeBuyback ? (await supply.lateSharesFor(client, activeBuyback.id, [userId])).get(Number(userId)) ?? 0 : 0;
+    const queuedFirst = activeBuyback && normalizedSide === "sell" ? await sumPendingSellShares(client, { userId, assetId: asset.id }) : 0;
     const indicativePrice = activeBuyback
-      ? supply.buybackFillPrice(asset, activeBuyback, parsedQuantity, now, supply.offerSharesFor(holding?.quantity, late))
+      ? supply.buybackFillPrice(asset, activeBuyback, parsedQuantity, now, supply.offerSharesFor(toNumber(holding?.quantity, 0) - queuedFirst, late))
       : computeExecutionPrice({
           side: normalizedSide,
           bidPrice: quotesBefore.bidPrice,

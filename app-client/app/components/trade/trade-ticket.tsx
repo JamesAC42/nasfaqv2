@@ -80,17 +80,21 @@ function CashToSpend({ cash, held, margin, total, qty, tooMuch }: { cash: number
   );
 }
 
-/** The buyback on the ticket (buyback-spotlight): today's offer, the step-down, what's left at it. */
-function BuybackNote({ asset }: { asset: MarketAsset }) {
+/**
+ * The buyback on the ticket (buyback-spotlight): today's offer, the step-down, what's left at it.
+ * `held` / `yours`: the seller's shares, and how many of them the offer pays on.
+ */
+function BuybackNote({ asset, held, yours }: { asset: MarketAsset; held: number; yours: number }) {
   const now = useNowEvery(60_000);
   const plan = planOf(asset, now);
   if (!plan) return null;
+  const noneOfYours = held > 0 && yours <= 0;
   return (
     <div className={styles.supplyNote} data-tone="buyback">
       <div className={styles.bbHead}>
         <BuybackPill asset={asset} now={now} size="md" />
         <span>
-          Broker pays <b>{n2(plan.backUnder ? plan.frozen : plan.offer)}</b> a share
+          Broker pays <b>{n2(plan.backUnder || noneOfYours ? plan.frozen : plan.offer)}</b> a share
         </span>
       </div>
       {plan.backUnder ? null : <BuybackMeter steps={plan.steps} endLabel={null} size="sm" />}
@@ -100,6 +104,7 @@ function BuybackNote({ asset }: { asset: MarketAsset }) {
         ) : (
           <>
             <b>{Math.ceil(plan.over).toLocaleString("en-US")}</b> shares left at {pctLabel(plan.pct)}; past those, sells get the frozen {n2(plan.frozen)}.
+            {noneOfYours ? " Yours were bought after the last tick before the buyback, so they get the frozen price." : yours < held ? ` ${Math.ceil(yours).toLocaleString("en-US")} of yours get the offer.` : ""}
             {plan.nextStepAt !== null && plan.nextPct !== null ? ` ${pctLabel(plan.nextPct)} in ${untilText(plan.nextStepAt - now)}.` : ""} No buys until it ends.
           </>
         )}
@@ -109,11 +114,11 @@ function BuybackNote({ asset }: { asset: MarketAsset }) {
 }
 
 /** What the order runs into on the supply side: sold out, the last shares, or a buyback. */
-function SupplyNote({ asset, side, qty }: { asset: MarketAsset; side: TradeSide; qty: number }) {
+function SupplyNote({ asset, side, qty, held, yours }: { asset: MarketAsset; side: TradeSide; qty: number; held: number; yours: number }) {
   const spotlight = useBuybackSpotlight();
   const forSale = asset.shares_for_sale ?? null;
   const max = asset.max_supply ?? null;
-  if (spotlight && asset.trading_state === "buyback" && asset.buyback) return <BuybackNote asset={asset} />;
+  if (spotlight && asset.trading_state === "buyback" && asset.buyback) return <BuybackNote asset={asset} held={held} yours={yours} />;
   if (asset.trading_state === "buyback" && asset.buyback) {
     const bb = asset.buyback;
     const next = bb.next_step_at ? new Date(bb.next_step_at) : null;
@@ -469,7 +474,7 @@ export function TradeTicket({
                 You hold {(holding?.quantity ?? 0).toLocaleString("en-US")} sh{tooMuch ? " · you don't hold that many" : ""}
               </p>
             ) : null}
-            <SupplyNote asset={asset} side={side} qty={qty} />
+            <SupplyNote asset={asset} side={side} qty={qty} held={holding?.quantity ?? 0} yours={yourOfferShares({ held: holding?.quantity ?? 0, eligible: holding?.buyback_offer_shares ?? null })} />
             <p className={styles.batch} suppressHydrationWarning>
               Fills in the <b>{formatEtTime(batchAt)} ET</b> <Term k="batch">batch</Term>
               {queuedAhead ? ` · ${queuedAhead} order${queuedAhead === 1 ? "" : "s"} queued on ${asset.symbol}` : ""}. The final price is set when the batch executes.

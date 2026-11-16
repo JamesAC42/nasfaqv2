@@ -181,14 +181,16 @@ test("a buyback pays its offer only on shares held before the cutoff", { skip: !
       late: await trading.submitLiveOrder(pool, { userId: late, symbol: "BBQ", side: "sell", quantity: 20 }),
       mixed: await trading.submitLiveOrder(pool, { userId: mixed, symbol: "BBQ", side: "sell", quantity: 250 }),
       early: await trading.submitLiveOrder(pool, { userId: early, symbol: "BBQ", side: "sell", quantity: 20 }),
+      // Behind their own queued 250, which takes the 200 held before the cutoff.
+      mixedRest: await trading.submitLiveOrder(pool, { userId: mixed, symbol: "BBQ", side: "sell", quantity: 50 }),
     };
-    const expected = { late: FROZEN, mixed: blend(200, 250), early: OFFER };
+    const expected = { late: FROZEN, mixed: blend(200, 250), early: OFFER, mixedRest: FROZEN };
     for (const [name, order] of Object.entries(orders)) {
       const { rows } = await pool.query(`SELECT metadata_json FROM market.trade_orders WHERE id = $1`, [order.order_id]);
       close(rows[0].metadata_json.queued_indicative_price, expected[name], `${name}'s estimate`);
     }
     const batch = await trading.processDueLiveOrders(pool, { now: new Date(Date.now() + 15 * 60_000) });
-    assert.equal(batch.filled, 3);
+    assert.equal(batch.filled, 4);
     assert.ok(!batch.row_by_row, "the batched path filled them");
     for (const [name, order] of Object.entries(orders)) {
       const { rows } = await pool.query(`SELECT price FROM market.trade_fills WHERE order_id = $1`, [order.order_id]);
