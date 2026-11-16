@@ -5,7 +5,7 @@ import { useRootAttribute } from "@/app/lib/use-root-attribute";
 
 // "Calm mode": turns off price flashes, the scrolling tape and the big tick/fill
 // animations. On by default when the OS asks for reduced motion; players can
-// flip it from the top bar. The boot script in app/layout.tsx applies the saved
+// flip it from the Display menu. The boot script in app/layout.tsx applies the saved
 // value to <html data-calm> before first paint, and globals.scss does the rest.
 
 type MotionContextValue = {

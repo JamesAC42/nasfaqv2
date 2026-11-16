@@ -38,6 +38,15 @@ export function navFor(flags: Record<string, boolean>, nav: NavGroup[] = NAV): N
   return nav.map((group) => (group.links ? { ...group, links: group.links.filter((link) => !link.feature || flags[link.feature] === true) } : group));
 }
 
+/**
+ * Whether Settings is linked (the account menu, the phone's More sheet): with either of its
+ * sections' flags.
+ */
+export function showSettingsLink(flags: Record<string, boolean>, signedIn = true) {
+  // Display (timezone-setting) works signed out too; Notifications (checkin-reminders) needs an account.
+  return flags["timezone-setting"] === true || (signedIn && flags["checkin-reminders"] === true);
+}
+
 export function isActivePath(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
