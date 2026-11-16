@@ -27,36 +27,12 @@
 
 // Opened in place from the Snow row of a Display menu.
 .inline {
-  padding: 0.55rem 0 0.2rem;
+  padding-bottom: 0.2rem;
 }
 
 .panel {
   display: grid;
   gap: 0.6rem;
-}
-
-.head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  strong {
-    @include section-heading;
-  }
-}
-
-.power {
-  @include button-base;
-  min-width: 3.2rem;
-  padding: 0.3rem 0.55rem;
-  font-size: 0.625rem;
-  color: var(--mid);
-
-  &[aria-pressed="true"] {
-    background: var(--blue);
-    border-color: var(--blue);
-    color: var(--blue-ink);
-  }
 }
 
 .rows {

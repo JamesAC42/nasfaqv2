@@ -52,19 +52,13 @@ function windReadout(wind: number) {
   return `${wind < 0 ? "←" : "→"} ${Math.round(Math.abs(wind) * 100)}`;
 }
 
-/** Every snow setting. They apply as you move them, so you can watch the page while you tune it. */
-function SnowPanel() {
+/** Every snow setting but on/off. They apply as you move them, so you can watch the page while you tune it. */
+function SnowPanel({ id }: { id: string }) {
   const { on, still, settings, update, reset } = useSnow();
   const set = (change: Partial<SnowSettings>) => update(change);
 
   return (
-    <div className={styles.panel} role="group" aria-label="Snow settings">
-      <div className={styles.head}>
-        <strong>Snow</strong>
-        <button type="button" className={styles.power} aria-pressed={on} onClick={() => set({ on: !on })}>
-          {on ? "On" : "Off"}
-        </button>
-      </div>
+    <div id={id} className={styles.panel} role="group" aria-label="Snow settings">
       <div className={styles.rows} data-off={on ? undefined : ""}>
         <Slider label="Amount" value={settings.amount} min={SNOW_AMOUNT_MIN} max={1} readout={percent(settings.amount)} onChange={(amount) => set({ amount })} />
         <Slider label="Speed" value={settings.speed} min={0} max={1} readout={percent(settings.speed)} onChange={(speed) => set({ speed })} />
@@ -88,34 +82,47 @@ function SnowPanel() {
 }
 
 /**
- * The Display menus (account menu, the signed-out Display button, the phone's More sheet): a Snow row
- * whose button opens every setting in place. Only there while snow is on offer.
+ * The Display menus (account menu, the signed-out Display button, the phone's More sheet): Snow's
+ * on/off switch, and a caret that opens its other settings in place. Only there while snow is on offer.
  */
 export function SnowDisplayRow() {
-  const { offered, on } = useSnow();
+  const { offered, on, update } = useSnow();
   const [open, setOpen] = useState(false);
-  const panelId = useId();
+  const id = useId();
   if (!offered) return null;
   return (
     <>
       <div className={shellStyles.displayRow}>
-        <span className={shellStyles.displayName}>Snow</span>
-        <button
-          type="button"
-          className={shellStyles.displayToggle}
-          data-on={on ? "" : undefined}
-          aria-label={`Snow settings (${on ? "on" : "off"})`}
-          aria-expanded={open}
-          aria-controls={panelId}
-          onClick={() => setOpen((current) => !current)}
-        >
-          {on ? "On" : "Off"}
-          <span className={shellStyles.caret} aria-hidden="true" />
-        </button>
+        <span id={`${id}-name`} className={shellStyles.displayName}>
+          Snow
+        </span>
+        <span className={shellStyles.displayPair}>
+          <button
+            type="button"
+            className={shellStyles.displayMore}
+            aria-label="More snow settings"
+            title="Amount, speed, wind and size"
+            aria-expanded={open}
+            aria-controls={open ? `${id}-panel` : undefined}
+            onClick={() => setOpen((current) => !current)}
+          >
+            <span className={shellStyles.caret} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={on}
+            aria-labelledby={`${id}-name`}
+            className={shellStyles.displayToggle}
+            onClick={() => update({ on: !on })}
+          >
+            {on ? "On" : "Off"}
+          </button>
+        </span>
       </div>
       {open ? (
-        <div id={panelId} className={styles.inline}>
-          <SnowPanel />
+        <div className={styles.inline}>
+          <SnowPanel id={`${id}-panel`} />
         </div>
       ) : null}
     </>
