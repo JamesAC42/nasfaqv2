@@ -1,0 +1,77 @@
+@use "../../styles/mixins" as *;
+
+// The buyback mark: frozen blue, a filled pill so it reads apart from the outlined chips around it.
+// Blue because the site's buybacks are already blue (the snowflake in the inbox, the ticket's note);
+// green and red stay for up and down.
+.badge {
+  @include num;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.18em 0.5em 0.16em 0.42em;
+  border-radius: 999px;
+  background:
+    repeating-linear-gradient(-45deg, transparent 0 5px, color-mix(in srgb, #fff 16%, transparent) 5px 7px),
+    var(--blue);
+  color: var(--blue-ink);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--blue) 55%, transparent), 0 0 10px color-mix(in srgb, var(--blue) 35%, transparent);
+
+  // Spans, not <b>: the rows the badge sits in style their own <b> (the ticker).
+  .pct {
+    display: inline;
+    color: inherit;
+    font-size: inherit;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+
+  &[data-size="xs"] {
+    font-size: 0.56rem;
+    padding: 0.12em 0.42em 0.1em 0.36em;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--blue) 55%, transparent);
+  }
+
+  // All sold back, reopening at the Open: outlined, the offer no longer matters.
+  &[data-ending] {
+    background: color-mix(in srgb, var(--blue) 12%, transparent);
+    color: var(--blue);
+    box-shadow: 0 0 0 1px var(--blue-line);
+  }
+
+  &[data-size="md"] {
+    font-size: 0.72rem;
+    padding: 0.28em 0.7em 0.26em 0.58em;
+  }
+}
+
+.flake {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  animation: spin 9s linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+.badge .word {
+  display: inline;
+  color: inherit;
+  font-size: inherit;
+  font-weight: 700;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

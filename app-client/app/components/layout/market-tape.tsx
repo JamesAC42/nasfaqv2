@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { BuybackBadge } from "@/app/components/common/buyback-badge";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { useMarketStore } from "@/app/stores/market-store";
 import styles from "@/app/components/layout/market-tape.module.scss";
@@ -79,6 +80,7 @@ const TapeItem = memo(function TapeItem({
     >
       <Oshimark icon={icon} symbol={symbol} size={15} />
       <b>{symbol}</b>
+      <BuybackBadge symbol={symbol} size="xs" compact />
       <span className={styles.price}>{formatPrice(price)}</span>
       <span className={styles[change.tone]}>
         {change.arrow} {change.text}

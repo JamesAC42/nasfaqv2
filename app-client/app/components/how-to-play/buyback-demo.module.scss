@@ -1,0 +1,87 @@
+@use "../../styles/mixins" as *;
+
+.demo {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--blue-line);
+  border-left: 4px solid var(--blue);
+  background:
+    repeating-linear-gradient(60deg, transparent 0 16px, color-mix(in srgb, var(--blue) 5%, transparent) 16px 17px),
+    color-mix(in srgb, var(--blue) 6%, var(--ink-2));
+  min-width: 0;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.tag {
+  @include label;
+}
+
+.body {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.art {
+  flex: none;
+  width: 6rem;
+  height: 6rem;
+}
+
+.offer {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+
+  p {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+
+  b {
+    @include num;
+  }
+}
+
+.big {
+  @include display(1.3rem);
+
+  b {
+    color: var(--blue);
+    font-size: 2rem;
+    font-weight: 800;
+  }
+}
+
+.dim {
+  color: var(--dim);
+}
+
+.days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+
+  button {
+    @include button-secondary;
+    flex: 1 1 0;
+    min-width: 3.4rem;
+    padding: 0.35rem 0.3rem;
+    font-size: 0.6rem;
+
+    &[aria-pressed="true"] {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: var(--blue-ink);
+    }
+  }
+}
