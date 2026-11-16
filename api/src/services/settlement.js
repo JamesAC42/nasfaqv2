@@ -4,6 +4,7 @@ const { normalizeFundamentalToPrice } = require("./fundamentals");
 const supply = require("./marketSupply");
 const netWorth = require("./netWorth");
 const { publishMarketEvent } = require("./marketEvents");
+const targetNudge = require("./targetNudge");
 const DEFAULT_PERSISTENT_DAILY_DECAY = 0.9;
 const DEFAULT_TRANSIENT_SETTLEMENT_DECAY = 0.1;
 const DEFAULT_LIQUIDITY_DEPTH_FLOOR = 2000;
@@ -267,7 +268,7 @@ function derivePreviousOffsets(previousState) {
   };
 }
 
-function buildSettledAssetState(assetRow, previousState) {
+function buildSettledAssetState(assetRow, previousState, { marketDate = null, gate = targetNudge.OFF } = {}) {
   if (!assetRow.snapshot_id) {
     const error = new Error(`missing_completed_snapshot:${assetRow.symbol}`);
     error.code = "missing_completed_snapshot";
@@ -275,7 +276,10 @@ function buildSettledAssetState(assetRow, previousState) {
   }
 
   // Priced against a fixed reference supply, so the weekly max-share reset never reprices a stock.
-  const fairValue = toNumber(normalizeFundamentalToPrice(assetRow.fundamental_value_smoothed, supply.REFERENCE_SUPPLY), 0);
+  // The day's fair value also carries the server-side daily factor (targetNudge.js), applied once
+  // here on top of the smoothed fundamental. The raw value stays as the formula gives it.
+  const smoothedPrice = toNumber(normalizeFundamentalToPrice(assetRow.fundamental_value_smoothed, supply.REFERENCE_SUPPLY), 0);
+  const fairValue = toNumber(gate.apply(smoothedPrice, assetRow.youtube_channel_id, marketDate), 0);
   const fairValueRaw = toNumber(normalizeFundamentalToPrice(assetRow.fundamental_value_raw, supply.REFERENCE_SUPPLY), 0);
   if (!(fairValue > 0) || !(fairValueRaw > 0)) {
     const error = new Error(`invalid_fair_value:${assetRow.symbol}`);
@@ -484,6 +488,9 @@ async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, forc
       await netWorth.recordDailyNetWorthSnapshot(client, previousCompletedMarketDate);
     }
 
+    // A forced settlement replays a day (a rebuild, "Regenerate a day") and only reads the activation
+    // date; a regular one records it the first time it runs with the secret set.
+    const gate = force ? await targetNudge.loadGate(client, { inTransaction: true }) : await targetNudge.recordGate(client, marketDate);
     const assets = await listAssetsForSettlement(client, resolvedSourceMarketDate);
     const settledStates = [];
     const previousStatesByAssetId = new Map();
@@ -497,7 +504,7 @@ async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, forc
       const priorState = previousStates[1] || null;
       previousStatesByAssetId.set(asset.id, previousState);
       priorStatesByAssetId.set(asset.id, priorState);
-      const state = buildSettledAssetState(asset, previousState);
+      const state = buildSettledAssetState(asset, previousState, { marketDate, gate });
       settledStates.push(state);
     }
     await settlementBatch.persistStates(client, marketDate, settledStates, DEFAULT_LIQUIDITY_DEPTH_FLOOR);

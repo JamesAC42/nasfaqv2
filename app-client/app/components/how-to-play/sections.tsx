@@ -132,7 +132,7 @@ export function MarketSection() {
           {
             k: "hidden",
             title: "Fair value",
-            body: "Repriced every morning from subscribers, recent views against their usual, sub growth and upload streaks. Quiet channels get marked down. It moves 25% a day at most. Today's number stays hidden until the day's last tick has landed; then the daily report shows it.",
+            body: "Repriced every morning from subscribers, recent views against their usual, sub growth and upload streaks. Quiet channels get marked down. It moves 25% a day at most. It also includes a small daily factor only the market knows, so it can’t be calculated exactly. Today's number stays hidden until the day's last tick has landed; then the daily report shows it.",
           },
           {
             k: "live",

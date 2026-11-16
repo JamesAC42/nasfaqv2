@@ -17,6 +17,9 @@ channel's base rate comes from its own numbers alone (`fundamentals.js` `compute
 - a size anchor from subscribers and 30-day views,
 - times a momentum multiplier from view and sub growth, uploads, stagnation and big streams,
 - blended 40/60 with the day before and capped at ±25% a day (debuts excepted),
+- times a small daily factor only the market knows (within ±2% by default, from a server-side
+  secret; `api/src/services/targetNudge.js`), so the base rate can't be calculated exactly from the
+  public numbers,
 - priced against a fixed reference supply of 10,000 shares, so a weekly share change never reprices a
   stock by itself.
 

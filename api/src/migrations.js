@@ -2142,6 +2142,10 @@ async function applySchema(pool) {
   // so /admin/analytics can set visitors next to sign-ups for each tag.
   await pool.query(`ALTER TABLE market.site_visits ADD COLUMN IF NOT EXISTS source TEXT NULL`);
 
+  // The first market date whose fair values carry the server-side daily factor (services/targetNudge.js),
+  // recorded by the first regular settlement that runs with MARKET_TARGET_SECRET set. Earlier days
+  // stay as they were on a rebuild. Not part of the public market status.
+  await pool.query(`ALTER TABLE market.market_runtime_state ADD COLUMN IF NOT EXISTS target_nudge_from DATE NULL`);
   // Notification settings (services/notificationSettings.js): one row per player who has changed
   // one, off for anyone without a row. A new channel or reminder (email, say) is a new column here.
   await pool.query(`

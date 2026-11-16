@@ -25,6 +25,7 @@ const { invalidateCachedJson } = require("../responseCache");
 const referenceImages = require("./referenceImages");
 const talentDetect = require("./talentDetect");
 const schedulerHealth = require("./schedulerHealth");
+const targetNudge = require("./targetNudge");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 
 const DEFAULTS = {
@@ -419,10 +420,13 @@ async function loadFairValueSeries(db, channelIds, { days = 60 } = {}) {
   `,
     [channelIds, days]
   );
+  // The same daily factor settlement puts on fair value (targetNudge.js). Admin only.
+  const gate = await targetNudge.loadGate(db);
   const byChannel = new Map();
   for (const row of rows) {
     if (!byChannel.has(row.youtube_channel_id)) byChannel.set(row.youtube_channel_id, []);
-    byChannel.get(row.youtube_channel_id).push({ day: row.day, fair_value: round2(toNumber(row.fundamental_value_smoothed) / 100) });
+    const fairValue = gate.apply(toNumber(row.fundamental_value_smoothed) / 100, row.youtube_channel_id, row.day);
+    byChannel.get(row.youtube_channel_id).push({ day: row.day, fair_value: round2(fairValue) });
   }
   return byChannel;
 }
