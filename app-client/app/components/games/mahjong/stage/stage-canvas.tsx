@@ -1,17 +1,18 @@
 "use client";
 
-// The WebGL half of the stage, loaded only in the browser (stage-mock imports it with ssr:false):
-// lights, the room, the camera rig and the scene pieces.
+// The WebGL half of the stage, loaded only in the browser (dynamic import with ssr:false): lights, the
+// room, the camera rig and the scene pieces. It draws only when something changes (frameloop
+// "demand"): every store change, tween and moment asks for frames, an idle table asks for none.
 
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { portraitFocus, portraitSpot, SEAT_YAW, seatPoint, TILE, type Vec3 } from "@/app/components/games/mahjong/stage/geometry";
-import { seatColor, useStage } from "@/app/components/games/mahjong/stage/mock-state";
-import { basePose, handAnchor, narrowness } from "@/app/components/games/mahjong/stage/rig";
+import { portraitFocus, portraitSpot, SEAT_YAW, seatPoint, type Vec3 } from "@/app/components/games/mahjong/stage/geometry";
+import { useStageStore } from "@/app/components/games/mahjong/stage/model";
+import { basePose, narrowness } from "@/app/components/games/mahjong/stage/rig";
 import { fx } from "@/app/components/games/mahjong/stage/fx";
-import { actionsKey, anchorKey, anchorWorld, fpsKey, overlayEls } from "@/app/components/games/mahjong/stage/overlay";
+import { anchorKey, anchorWorld, fpsKey, overlayEls, setOverlayRepaint } from "@/app/components/games/mahjong/stage/overlay";
 import { radialTexture, roomTexture } from "@/app/components/games/mahjong/stage/textures";
 import { Tiles } from "@/app/components/games/mahjong/stage/scene-tiles";
 import { TableScene } from "@/app/components/games/mahjong/stage/scene-table";
@@ -132,10 +133,14 @@ function Lights({ day }: { day: boolean }) {
     geometry.translate(0, -0.5, 0);
     return geometry;
   }, []);
+  useEffect(() => () => beamGeometry.dispose(), [beamGeometry]);
   const beamMat = useMemo(() => beamMaterial(day ? "#fff3dc" : "#ffe2b8"), [day]);
   useEffect(() => () => beamMat.dispose(), [beamMat]);
   useFrame((state) => {
-    const { moment, reveal, reduced } = useStage.getState();
+    const { model, ui } = useStageStore.getState();
+    const { moment } = model;
+    const { reduced } = ui;
+    const revealed = model.hands.some((hand) => hand.revealed);
     const now = performance.now();
     const narrow = narrowness(state.size.width / Math.max(1, state.size.height));
     let room = 1;
@@ -163,7 +168,7 @@ function Lights({ day }: { day: boolean }) {
       } else if (moment.kind === "riichi") {
         room = 1 - 0.18 * smooth(t / 0.6);
       }
-    } else if (reveal !== null) {
+    } else if (revealed) {
       room = 0.4;
     }
     const l = level.current;
@@ -266,19 +271,22 @@ function Room({ day }: { day: boolean }) {
   }, []);
   const motesRef = useRef<THREE.Points>(null);
   useEffect(() => () => backdrop.dispose(), [backdrop]);
+  useEffect(() => () => glow.dispose(), [glow]);
+  useEffect(() => () => motes.dispose(), [motes]);
   // The lamp's cone of light: the same soft beam as the win spotlight, unit-sized and scaled.
   const cone = useMemo(() => {
     const geometry = new THREE.CylinderGeometry(0.08, 1, 1, 48, 8, true);
     geometry.translate(0, -0.5, 0);
     return geometry;
   }, []);
+  useEffect(() => () => cone.dispose(), [cone]);
   const coneMaterial = useMemo(() => beamMaterial(day ? "#fff4dc" : "#ffcf8f"), [day]);
   useEffect(() => () => coneMaterial.dispose(), [coneMaterial]);
 
   useFrame((state) => {
     if (backdropMat.current) backdropMat.current.color.setScalar(lv.backdrop * (0.25 + 0.75 * fx.room));
     if (coneRef.current) (coneRef.current.material as THREE.ShaderMaterial).uniforms.uOpacity.value = (day ? 0.05 : 0.11) * fx.room;
-    if (motesRef.current && !useStage.getState().reduced) motesRef.current.rotation.y = state.clock.elapsedTime * 0.02;
+    if (motesRef.current && !useStageStore.getState().ui.reduced) motesRef.current.rotation.y = state.clock.elapsedTime * 0.02;
   });
 
   return (
@@ -331,7 +339,8 @@ function CameraRig() {
     const aspect = size.width / Math.max(1, size.height);
     const base = basePose(aspect);
     const narrow = narrowness(aspect);
-    const { moment, reduced } = useStage.getState();
+    const { moment } = useStageStore.getState().model;
+    const { reduced } = useStageStore.getState().ui;
     const position = new THREE.Vector3(...base.position);
     const target = new THREE.Vector3(...base.target);
     let busy = false;
@@ -340,17 +349,12 @@ function CameraRig() {
       const focus = new THREE.Vector3(...(moment.seat === 0 ? seatPoint(0, 0, 4, 26) : portraitFocus(moment.seat, narrow)));
       // Glide in over ~1 s, hold, glide back.
       const env = moment.kind === "riichi" ? smooth(t / 1.0) * (1 - smooth((t - 2.4) / 1.0)) : smooth(t / 1.2) * 0.1;
-      target.lerp(focus, 0.38 * env);
-      position.lerp(focus, 0.15 * env);
-      busy = env > 0 && env < 1;
+      // A gentle lean toward the seat: the aim swings a little and the lens creeps in a touch, never
+      // far enough to lose the player across off the top of the frame or your own hand off the bottom.
+      target.lerp(focus, 0.12 * env);
+      target.y = Math.min(target.y, base.target[1] + 1.5);
+      position.lerp(focus, 0.025 * env);
       if (t < 3.6) busy = true;
-    }
-    if (!reduced) {
-      // A few millimeters of idle drift.
-      const e = state.clock.elapsedTime;
-      position.x += Math.sin(e * 0.31) * 0.35;
-      position.y += Math.sin(e * 0.23 + 1) * 0.25;
-      target.x += Math.sin(e * 0.17) * 0.12;
     }
     camera.position.copy(position);
     lookAt.copy(target);
@@ -369,21 +373,16 @@ function CameraRig() {
         const el = overlayEls.get(anchorKey(kind, seat));
         if (!el) continue;
         scratch.set(...anchorWorld(kind, seat, narrow)).project(camera);
-        const x = ((scratch.x + 1) / 2) * size.width;
+        let x = ((scratch.x + 1) / 2) * size.width;
         const y = ((1 - scratch.y) / 2) * size.height;
+        // A plate is centered on its point: keep all of it inside the frame.
+        if (kind === "plate") {
+          const half = ((el.firstElementChild as HTMLElement | null)?.offsetWidth ?? 0) / 2;
+          x = Math.min(Math.max(x, half + 6), Math.max(half + 6, size.width - half - 6));
+        }
         el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
         el.style.visibility = scratch.z < 1 ? "visible" : "hidden";
       }
-    }
-
-    const actions = overlayEls.get(actionsKey);
-    if (actions) {
-      const hand = handAnchor(aspect, size.width);
-      scratch.set(hand.center[0], hand.center[1] + TILE.h * 0.62, hand.center[2]).project(camera);
-      const x = ((scratch.x + 1) / 2) * size.width;
-      const y = ((1 - scratch.y) / 2) * size.height;
-      actions.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
-      actions.style.visibility = "visible";
     }
 
     // FPS readout.
@@ -401,22 +400,33 @@ function CameraRig() {
   return null;
 }
 
-/** Under reduced motion the canvas renders on demand: redraw whenever the mock state changes. */
+/** Redraw whenever the stage's model or your hand's look changes; overlays registered later get a frame too. */
 function InvalidateOnChange() {
   const invalidate = useThree((s) => s.invalidate);
-  useEffect(() => useStage.subscribe(() => invalidate()), [invalidate]);
+  useEffect(() => useStageStore.subscribe(() => invalidate()), [invalidate]);
+  useEffect(() => {
+    setOverlayRepaint(() => invalidate());
+    return () => setOverlayRepaint(null);
+  }, [invalidate]);
   return null;
 }
 
-export default function StageCanvas({ day }: { day: boolean }) {
-  const reduced = useStage((s) => s.reduced);
+export default function StageCanvas({ day, onLost }: { day: boolean; onLost?: () => void }) {
+  // Unmounting loses the context on purpose (the renderer is disposed): only a loss while mounted counts.
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   const lowEnd = typeof navigator !== "undefined" && (navigator.hardwareConcurrency ?? 8) <= 4;
   const backColor = day ? "#2f86c0" : "#1a557c";
   return (
     <Canvas
       shadows="percentage"
       dpr={lowEnd ? 1 : [1, 1.5]}
-      frameloop={reduced ? "demand" : "always"}
+      frameloop="demand"
       camera={{ fov: 40, near: 5, far: 900, position: [0, 61, 80] }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       onCreated={({ gl, get }) => {
@@ -424,11 +434,20 @@ export default function StageCanvas({ day }: { day: boolean }) {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = EXPOSURE;
         gl.outputColorSpace = THREE.SRGBColorSpace;
-        // For measuring from the browser console (dev-only page): window.__mjThree().gl.info, etc.
-        (window as unknown as { __mjThree?: typeof get }).__mjThree = get;
+        // For measuring from the browser console in development: window.__mjThree().gl.info, etc.
+        if (process.env.NODE_ENV !== "production") (window as unknown as { __mjThree?: typeof get }).__mjThree = get;
         // ANGLE's D3D compiler logs harmless X4122 precision notes for three's depth-packing chunk;
         // compile errors still surface as WebGL errors.
         gl.debug.checkShaderErrors = false;
+        // A lost context (driver reset, too many contexts) hands the table back to the flat board.
+        gl.domElement.addEventListener(
+          "webglcontextlost",
+          () =>
+            window.setTimeout(() => {
+              if (alive.current) onLost?.();
+            }, 0),
+          { once: true },
+        );
       }}
     >
       <InvalidateOnChange />
@@ -436,7 +455,7 @@ export default function StageCanvas({ day }: { day: boolean }) {
       <Lights day={day} />
       <Room day={day} />
       <TableScene day={day} />
-      <Tiles day={day} backColor={backColor} />
+      <Tiles backColor={backColor} />
       <Portraits day={day} />
       <SeatGlows day={day} />
     </Canvas>
@@ -446,6 +465,8 @@ export default function StageCanvas({ day }: { day: boolean }) {
 /** A faint pool of each seat's color on the felt in front of its hand. */
 function SeatGlows({ day }: { day: boolean }) {
   const glow = useMemo(() => radialTexture(0, 1), []);
+  useEffect(() => () => glow.dispose(), [glow]);
+  const colors = useStageStore((s) => s.model.seats.map((seat) => seat.color).join(","));
   return (
     <group>
       {[0, 1, 2, 3].map((seat) => {
@@ -453,7 +474,7 @@ function SeatGlows({ day }: { day: boolean }) {
         return (
           <mesh key={seat} position={[x, 0.04, z]} rotation={new THREE.Euler(-Math.PI / 2, SEAT_YAW[seat], 0, "YXZ")}>
             <planeGeometry args={[48, 22]} />
-            <meshBasicMaterial map={glow} color={seatColor(seat, day)} transparent opacity={day ? 0.05 : 0.07} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+            <meshBasicMaterial map={glow} color={colors.split(",")[seat]} transparent opacity={day ? 0.05 : 0.07} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
           </mesh>
         );
       })}

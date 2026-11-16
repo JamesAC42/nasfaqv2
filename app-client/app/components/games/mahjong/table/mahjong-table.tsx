@@ -21,13 +21,15 @@ import { ResultPanel } from "@/app/components/games/mahjong/table/result-panel";
 import { useSeatStyles } from "@/app/components/games/mahjong/table/seat-portrait";
 import { SoundControl } from "@/app/components/games/mahjong/table/sound-control";
 import { SpectatorStrip } from "@/app/components/games/mahjong/table/spectator-strip";
-import { useHelpOn, useSingleTap } from "@/app/components/games/mahjong/table/table-prefs";
+import { useHelpOn, useSingleTap, useTable3d } from "@/app/components/games/mahjong/table/table-prefs";
 import { ReactionBar, ReactionLayer, useTableReactions } from "@/app/components/games/mahjong/table/table-reactions";
 import { useMahjongTable } from "@/app/components/games/mahjong/table/use-mahjong-table";
 import { useTableSounds } from "@/app/components/games/mahjong/table/use-table-sounds";
 import { HandReveal } from "@/app/components/games/mahjong/table/win-reveal";
 import { WaitingRoom } from "@/app/components/games/mahjong/table/waiting-room";
 import { TalentSelect } from "@/app/components/games/mahjong/select/talent-select";
+import { HandButtons } from "@/app/components/games/mahjong/stage/hand-buttons";
+import { LiveStage, webglAvailable } from "@/app/components/games/mahjong/stage/live-stage";
 import { TileBack } from "@/app/components/games/mahjong/tile";
 import type { Coach } from "@/app/lib/games/mahjong/types";
 import type { ChibiPose } from "@/app/lib/art-manifest";
@@ -44,6 +46,7 @@ import { isSeatedTable, isSeatHand, type HandResult, type MahjongAction, type Se
 import { primeChannel, useGamesConnected } from "@/app/lib/games/use-games-socket";
 import { useRemaining } from "@/app/lib/games/use-remaining";
 import { useAuth } from "@/app/providers/auth-provider";
+import { useTheme } from "@/app/providers/theme-provider";
 import panels from "@/app/components/games/mahjong/table/table-panels.module.scss";
 import styles from "@/app/components/games/mahjong/table/table-page.module.scss";
 
@@ -116,6 +119,14 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
 
   const [helpOn, setHelpOn] = useHelpOn();
   const [singleTap, setSingleTap] = useSingleTap();
+  // The 3D table, unless the player chose the classic board, or this browser can't draw it (then the
+  // flat board takes over for the visit, without touching the saved choice). Phones start on the
+  // classic board: at phone width the 3D table's discards come out too small to read.
+  const [table3d, setTable3d] = useTable3d(!phone);
+  const [stageFailed, setStageFailed] = useState(false);
+  const onStageFail = useCallback(() => setStageFailed(true), []);
+  const { theme } = useTheme();
+  const can3d = !stageFailed && webglAvailable();
   const [selected, setSelected] = useState<TileId | null>(null);
   const [riichiMode, setRiichiMode] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -551,8 +562,52 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
   const whoOf = (seat: number) => seatLabel(table.seats[seat]);
   const inRiichi = Boolean(seatHand && hand.seats[seatHand.seat].riichi);
   const closedHand = Boolean(seatHand && hand.seats[seatHand.seat].melds.every((meld) => meld.type === "ankan"));
+  const use3d = table3d && can3d;
+  const reveal = revealing && hand.result ? <HandReveal result={hand.result} table={table} seatStyles={seatStyles} label={game.label} onBeat={onRevealBeat} onDone={onRevealDone} /> : null;
+  // Your hand: the flat row of tiles, or on the 3D table the buttons pinned over its tiles.
+  const HandView = use3d ? HandButtons : MyHand;
+  const handView = seatHand ? (
+    <HandView
+      tiles={seatHand.hand}
+      drawn={seatHand.drawn}
+      allowed={allowed}
+      turn={myTurn}
+      selected={selected}
+      onSelect={setSelected}
+      onDiscard={discardTile}
+      singleTap={singleTap}
+      marks={marks}
+      fade={myTurn ? fade : undefined}
+      label="Your hand"
+      seat={bottom}
+      ready={!over && (seatHand.help.waits.length > 0 || hand.seats[seatHand.seat].riichi > 0)}
+      safe={safe}
+    />
+  ) : null;
+  const actionBar = seatHand ? (
+    <ActionBar
+      options={over ? null : options}
+      waiting={Boolean(over)}
+      busy={busy}
+      riichiMode={riichiMode}
+      onRiichiMode={(on) => {
+        setRiichiMode(on);
+        setSelected(null);
+      }}
+      onAct={(action) => void act(action)}
+      guide={guide}
+      advice={helpOn && !lesson && liveHasUi ? (liveCoach?.call_advice ?? null) : null}
+      suggestion={liveCoach?.suggestion ?? null}
+      timed={Boolean(me?.deadline && me.turn_ms !== null && table.speed !== "untimed")}
+    />
+  ) : null;
 
-  const spectatorBacks = watching ? (
+  const statusLine = (
+    <p className={styles.status} data-mine={(myTurn && !over) || (asked && options?.phase === "calls" && !over) || undefined} aria-live="polite">
+      {status}
+    </p>
+  );
+  const spectatorBacks = watching && !use3d ? (
     <div className={styles.watchHand} data-fly-src={bottom} aria-label={`${myInfo.count} tiles in hand`}>
       {Array.from({ length: myInfo.has_drawn ? myInfo.count - 1 : myInfo.count }, (_, index) => (
         <TileBack key={index} size={phone ? 20 : 30} tint={seatStyles[bottom]?.color} />
@@ -581,6 +636,11 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
           ) : null}
           <span className={styles.headSpace} />
           <SoundControl />
+          {can3d ? (
+            <Toggle on={table3d} onChange={setTable3d} title={table3d ? "Showing the 3D table. Switch to the classic flat table" : "Showing the classic table. Switch to the 3D table"}>
+              3D table
+            </Toggle>
+          ) : null}
           {seated ? <Toggle on={helpOn} onChange={setHelpOn} title="Hints for beginners">Help</Toggle> : null}
           <FeedbackButton tableId={tableId} />
           <button type="button" className={styles.round} onClick={() => setSheet(true)} aria-label="Help: easy patterns and the basics" title="Easy patterns and the basics">
@@ -617,26 +677,44 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
         <div className={styles.layout}>
           <div className={styles.main}>
             <div className={styles.boardWrap}>
-              <Board
-                table={table}
-                game={game}
-                hand={hand}
-                bottom={bottom}
-                me={mySeat}
-                seatStyles={seatStyles}
-                poses={poses}
-                callouts={callouts}
-                floaters={reactions.on ? <ReactionLayer stage={reactions.stage} /> : null}
-                overlay={
-                  revealing && hand.result ? (
-                    <HandReveal result={hand.result} table={table} seatStyles={seatStyles} label={game.label} onBeat={onRevealBeat} onDone={onRevealDone} />
-                  ) : null
-                }
-              />
+              {use3d ? (
+                <LiveStage
+                  table={table}
+                  game={game}
+                  hand={hand}
+                  bottom={bottom}
+                  me={mySeat}
+                  seatStyles={seatStyles}
+                  callouts={callouts}
+                  floaters={reactions.on ? <ReactionLayer stage={reactions.stage} /> : null}
+                  overlay={reveal}
+                  hand3d={handView}
+                  tray={
+                    <>
+                      {statusLine}
+                      {actionBar}
+                    </>
+                  }
+                  day={theme === "light"}
+                  reduced={motionOff()}
+                  onFail={onStageFail}
+                />
+              ) : (
+                <Board
+                  table={table}
+                  game={game}
+                  hand={hand}
+                  bottom={bottom}
+                  me={mySeat}
+                  seatStyles={seatStyles}
+                  poses={poses}
+                  callouts={callouts}
+                  floaters={reactions.on ? <ReactionLayer stage={reactions.stage} /> : null}
+                  overlay={reveal}
+                />
+              )}
             </div>
-            <p className={styles.status} data-mine={(myTurn && !over) || (asked && options?.phase === "calls" && !over) || undefined} aria-live="polite">
-              {status}
-            </p>
+            {!use3d ? statusLine : null}
             {spectatorBacks}
             {seatHand ? (
               <>
@@ -644,42 +722,13 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
                 <div className={styles.dock} data-mine={(myTurn && !over) || undefined}>
                 {phone && helpOn && coachUi && !over ? <CoachStrip hand={seatHand} coach={coachUi} selected={selected} closed={closedHand} inRiichi={inRiichi} who={whoOf} myTurn={myTurn} stale={coachStale} /> : null}
                 {me && me.deadline && me.turn_ms !== null && table.speed !== "untimed" && asked && !over ? <MyClock deadline={me.deadline} bank={me.bank} turnMs={me.turn_ms} /> : null}
-                <MyHand
-                  tiles={seatHand.hand}
-                  drawn={seatHand.drawn}
-                  allowed={allowed}
-                  turn={myTurn}
-                  selected={selected}
-                  onSelect={setSelected}
-                  onDiscard={discardTile}
-                  singleTap={singleTap}
-                  marks={marks}
-                  fade={myTurn ? fade : undefined}
-                  label="Your hand"
-                  seat={bottom}
-                  ready={!over && (seatHand.help.waits.length > 0 || hand.seats[seatHand.seat].riichi > 0)}
-                  safe={safe}
-                />
+                {!use3d ? handView : null}
                 {error ? (
                   <p className={styles.error} role="alert">
                     {error}
                   </p>
                 ) : null}
-                <ActionBar
-                  options={over ? null : options}
-                  waiting={Boolean(over)}
-                  busy={busy}
-                  riichiMode={riichiMode}
-                  onRiichiMode={(on) => {
-                    setRiichiMode(on);
-                    setSelected(null);
-                  }}
-                  onAct={(action) => void act(action)}
-                  guide={guide}
-                  advice={helpOn && !lesson && liveHasUi ? (liveCoach?.call_advice ?? null) : null}
-                  suggestion={liveCoach?.suggestion ?? null}
-                  timed={Boolean(me?.deadline && me.turn_ms !== null && table.speed !== "untimed")}
-                />
+                {!use3d ? actionBar : null}
                 </div>
                 {helpOn && !lesson && !over && !(liveHasUi && liveCoach?.call_advice?.length) ? <ActionHints options={options} /> : null}
                 {!lesson ? (

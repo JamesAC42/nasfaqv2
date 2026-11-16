@@ -37,6 +37,46 @@ export type MyHandProps = {
 
 const MAX_TILE = 52;
 
+/**
+ * How your hand answers input, shared by the flat hand and the 3D table's tile buttons: tap to lift,
+ * tap again (or once, with the one-tap setting) to throw; arrow keys, Home and End move between the
+ * tiles you may throw; nothing stays lifted once it can no longer be thrown.
+ */
+export function useHandPress({ allowed, selected, onSelect, onDiscard, singleTap }: Pick<MyHandProps, "allowed" | "selected" | "onSelect" | "onDiscard" | "singleTap">) {
+  useEffect(() => {
+    if (selected !== null && !allowed.has(selected)) onSelect(null);
+  }, [allowed, onSelect, selected]);
+
+  const press = (id: TileId, element: HTMLElement) => {
+    if (!allowed.has(id)) return;
+    if (singleTap || selected === id) {
+      const box = element.getBoundingClientRect();
+      noteThrow(box.left + box.width / 2, box.top + box.height / 2);
+      onDiscard(id);
+    } else {
+      playCue("ui_click");
+      onSelect(id);
+    }
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(event.key)) return;
+    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+    if (!buttons.length) return;
+    const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    let next = at;
+    if (event.key === "ArrowLeft") next = at <= 0 ? 0 : at - 1;
+    else if (event.key === "ArrowRight") next = at < 0 ? 0 : Math.min(buttons.length - 1, at + 1);
+    else if (event.key === "Home") next = 0;
+    else next = buttons.length - 1;
+    event.preventDefault();
+    buttons[next]?.focus();
+  };
+
+  return { press, onKeyDown };
+}
+
 /** Your concealed tiles, with the tile you just drew set apart. Tap to lift, tap again to discard. */
 export function MyHand({ tiles, drawn, allowed, turn, selected, onSelect, onDiscard, singleTap, marks, fade, label, ready, seat, safe }: MyHandProps) {
   const [ref, width] = useElementWidth<HTMLDivElement>();
@@ -69,37 +109,7 @@ export function MyHand({ tiles, drawn, allowed, turn, selected, onSelect, onDisc
   // One gap between neighbors, plus a wider one before the drawn tile.
   const size = width ? Math.max(18, Math.min(MAX_TILE, Math.floor((width - 2 * count - 12) / Math.max(count, 1)))) : 24;
 
-  // Nothing stays lifted once it can no longer be discarded (the turn moved on).
-  useEffect(() => {
-    if (selected !== null && !allowed.has(selected)) onSelect(null);
-  }, [allowed, onSelect, selected]);
-
-  const press = (id: TileId, element: HTMLElement) => {
-    if (!allowed.has(id)) return;
-    if (singleTap || selected === id) {
-      const box = element.getBoundingClientRect();
-      noteThrow(box.left + box.width / 2, box.top + box.height / 2);
-      onDiscard(id);
-    } else {
-      playCue("ui_click");
-      onSelect(id);
-    }
-  };
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
-    if (!keys.includes(event.key)) return;
-    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
-    if (!buttons.length) return;
-    const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    let next = at;
-    if (event.key === "ArrowLeft") next = at <= 0 ? 0 : at - 1;
-    else if (event.key === "ArrowRight") next = at < 0 ? 0 : Math.min(buttons.length - 1, at + 1);
-    else if (event.key === "Home") next = 0;
-    else next = buttons.length - 1;
-    event.preventDefault();
-    buttons[next]?.focus();
-  };
+  const { press, onKeyDown } = useHandPress({ allowed, selected, onSelect, onDiscard, singleTap });
 
   const render = (id: TileId, apart: boolean) => {
     const can = allowed.has(id);

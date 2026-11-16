@@ -9,10 +9,21 @@ export type AnchorKind = "plate" | "cheer";
 export const overlayEls = new Map<string, HTMLElement>();
 export const anchorKey = (kind: AnchorKind, seat: number) => `${kind}-${seat}`;
 
-export function registerOverlay(key: string, el: HTMLElement | null) {
-  if (el) overlayEls.set(key, el);
-  else overlayEls.delete(key);
+/** Set by the canvas: draws a frame, so an overlay registered between frames gets placed. */
+let repaint: (() => void) | null = null;
+export function setOverlayRepaint(next: (() => void) | null) {
+  repaint = next;
 }
+
+export function registerOverlay(key: string, el: HTMLElement | null) {
+  if (el) {
+    overlayEls.set(key, el);
+    repaint?.();
+  } else overlayEls.delete(key);
+}
+
+/** The button over one of your tiles (scene-tiles pins it over the tile's face). */
+export const handKey = (id: number) => `hand-${id}`;
 
 /** World point for an overlay. `narrow` is the camera rig's 0 (landscape) to 1 (phone). */
 export function anchorWorld(kind: AnchorKind, seat: number, narrow: number): Vec3 {
@@ -35,9 +46,6 @@ export function anchorWorld(kind: AnchorKind, seat: number, narrow: number): Vec
   if (seat === 0) return [TABLE.felt * 0.6, 8, TABLE.felt];
   return [spot.p[0] - Math.sign(spot.p[0]) * spot.shoulder * 0.66, up, spot.p[2]];
 }
-
-/** The action buttons, pinned just above the viewer's hand. */
-export const actionsKey = "actions";
 
 /** Live FPS readout element (debug bar). */
 export const fpsKey = "fps";

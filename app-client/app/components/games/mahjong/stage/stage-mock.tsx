@@ -1,54 +1,24 @@
 "use client";
 
 // The 3D table mock's page: the canvas (client-only, loaded lazily), a sparse HTML HUD over it, the
-// overlays pinned to seats, and a debug bar that fires each moment. Scripted state only.
+// overlays pinned to seats, and a debug bar that fires each moment. Scripted state only, turned into
+// the same stage model a live table produces (mockModel), so the scene here is the scene there.
 
 import dynamic from "next/dynamic";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useTheme } from "@/app/providers/theme-provider";
-import { SEATS, seatColor, useStage, type LowerThird } from "@/app/components/games/mahjong/stage/mock-state";
-import { actionsKey, anchorKey, fpsKey, registerOverlay } from "@/app/components/games/mahjong/stage/overlay";
+import { mockModel, SEATS, seatColor, useStage, type LowerThird } from "@/app/components/games/mahjong/stage/mock-state";
+import { useStageStore } from "@/app/components/games/mahjong/stage/model";
+import { anchorKey, fpsKey, registerOverlay } from "@/app/components/games/mahjong/stage/overlay";
+import { HandButtons } from "@/app/components/games/mahjong/stage/hand-buttons";
+import { Nameplate, SeatHud } from "@/app/components/games/mahjong/stage/stage-overlays";
+import type { TileId } from "@/app/lib/games/mahjong/tiles";
 import styles from "@/app/components/games/mahjong/stage/stage.module.scss";
 
 const StageCanvas = dynamic(() => import("@/app/components/games/mahjong/stage/stage-canvas"), {
   ssr: false,
   loading: () => <div className={styles.loading}>Setting the table…</div>,
 });
-
-const fmt = (value: number) => value.toLocaleString("en-US");
-
-function Sparkline({ line, color }: { line: number[]; color: string }) {
-  const lo = Math.min(...line) - 500;
-  const hi = Math.max(...line) + 500;
-  const pts = line.map((v, i) => `${((i / Math.max(1, line.length - 1)) * 56).toFixed(1)},${(18 - ((v - lo) / (hi - lo)) * 16).toFixed(1)}`);
-  const last = line[line.length - 1];
-  const prev = line[line.length - 2] ?? last;
-  const tone = last > prev ? "var(--up)" : last < prev ? "var(--down)" : color;
-  return (
-    <svg className={styles.spark} viewBox="0 0 56 20" aria-hidden="true">
-      <polyline points={pts.slice(0, -1).join(" ")} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
-      <polyline key={line.length} className={styles.sparkTail} points={pts.slice(-2).join(" ")} fill="none" stroke={tone} strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function Nameplate({ seat, day }: { seat: number; day: boolean }) {
-  const points = useStage((s) => s.points[seat]);
-  const line = useStage((s) => s.history[seat]);
-  const riichi = useStage((s) => s.riichi[seat]);
-  const color = seatColor(seat, day);
-  return (
-    <div className={styles.pin} ref={(el) => registerOverlay(anchorKey("plate", seat), el)}>
-      <div className={styles.plate} data-seat={seat} style={{ "--seat": color } as CSSProperties}>
-        <span className={styles.plateWind}>{SEATS[seat].wind}</span>
-        <span className={styles.plateName}>{SEATS[seat].short}</span>
-        <span className={styles.platePts}>{fmt(points)}</span>
-        <Sparkline line={line} color={color} />
-        {riichi ? <span className={styles.plateRiichi}>Riichi</span> : null}
-      </div>
-    </div>
-  );
-}
 
 function Cheers({ seat, day }: { seat: number; day: boolean }) {
   const reactions = useStage((s) => s.reactions);
@@ -106,40 +76,53 @@ function LowerThirdBar({ data, day }: { data: LowerThird; day: boolean }) {
   );
 }
 
-function Hud({ day }: { day: boolean }) {
-  const points = useStage((s) => s.points[0]);
-  const line = useStage((s) => s.history[0]);
+const NO_MARKS = new Map();
+
+/** Your hand's buttons: any tile goes while you have drawn and no moment is playing (one tap throws). */
+function MockHand() {
+  const hand = useStage((s) => s.hands[0]);
+  const drawn = useStage((s) => s.drawn);
+  const busy = useStage((s) => Boolean(s.moment) || s.reveal !== null);
+  const discard = useStage((s) => s.discard);
+  const [selected, setSelected] = useState<TileId | null>(null);
+  const allowed = useMemo(() => new Set(drawn && !busy ? hand : []), [hand, drawn, busy]);
+  return (
+    <HandButtons
+      tiles={drawn ? hand.slice(0, -1) : hand}
+      drawn={drawn ? hand[hand.length - 1] : null}
+      allowed={allowed}
+      turn={drawn}
+      selected={selected}
+      onSelect={setSelected}
+      onDiscard={discard}
+      singleTap
+      marks={NO_MARKS}
+      label="Your hand"
+    />
+  );
+}
+
+/** Placeholder moves, in the tray under the stage (where the live table's action bar goes). */
+function MockMoves() {
   const drawn = useStage((s) => s.drawn);
   const riichiFor = useStage((s) => s.riichiFor);
   const myRiichi = useStage((s) => s.riichi[0]);
-  // The moves step aside while a moment plays.
   const quiet = useStage((s) => Boolean(s.moment) || s.lowerThird !== null || s.reveal !== null);
   return (
-    <>
-      <div className={styles.hudTop} style={{ "--seat": seatColor(0, day) } as CSSProperties}>
-        <span className={styles.hudWind}>{SEATS[0].wind}</span>
-        <span className={styles.hudLabel}>You</span>
-        <span className={styles.hudPts}>{fmt(points)}</span>
-        <Sparkline line={line} color={seatColor(0, day)} />
-        <span className={styles.beta}>Beta</span>
-      </div>
-      <div className={`${styles.pin} ${styles.actionsPin}`} data-quiet={quiet || undefined} ref={(el) => registerOverlay(actionsKey, el)}>
-      <div className={styles.actions} role="group" aria-label="Your moves (placeholders)">
-        <button type="button" className={styles.act} disabled>
-          Chi
-        </button>
-        <button type="button" className={styles.act} disabled>
-          Pon
-        </button>
-        <button type="button" className={`${styles.act} ${styles.actHot}`} disabled={!drawn || myRiichi} onClick={() => riichiFor(0)}>
-          Riichi
-        </button>
-        <button type="button" className={styles.act} disabled>
-          Pass
-        </button>
-      </div>
-      </div>
-    </>
+    <div className={styles.actions} role="group" aria-label="Your moves (placeholders)" data-quiet={quiet || undefined}>
+      <button type="button" className={styles.act} disabled>
+        Chi
+      </button>
+      <button type="button" className={styles.act} disabled>
+        Pon
+      </button>
+      <button type="button" className={`${styles.act} ${styles.actHot}`} disabled={!drawn || myRiichi || quiet} onClick={() => riichiFor(0)}>
+        Riichi
+      </button>
+      <button type="button" className={styles.act} disabled>
+        Pass
+      </button>
+    </div>
   );
 }
 
@@ -211,7 +194,20 @@ export function StageMock() {
   const lowerThird = useStage((s) => s.lowerThird);
   const dismiss = useStage((s) => s.dismiss);
   const setReduced = useStage((s) => s.setReduced);
+  const reduced = useStage((s) => s.reduced);
   const day = dayOverride ?? theme === "light";
+
+  // The scripted state drives the stage through the same model as a live table.
+  const setModel = useStageStore((s) => s.setModel);
+  const setUi = useStageStore((s) => s.setUi);
+  const resetStage = useStageStore((s) => s.reset);
+  useEffect(() => {
+    const push = () => setModel(mockModel(useStage.getState(), day));
+    push();
+    return useStage.subscribe(push);
+  }, [day, setModel]);
+  useEffect(() => setUi({ reduced }), [reduced, setUi]);
+  useEffect(() => resetStage, [resetStage]);
 
   // Follow the OS setting for reduced motion (the debug bar can flip it too).
   useEffect(() => {
@@ -240,14 +236,14 @@ export function StageMock() {
         <h1>
           Mahjong stage <span className={styles.beta}>Mock</span>
         </h1>
-        <p>A visual mock of a 3D table: scripted state, no game. Click one of your tiles to discard it; fire the moments from the bar below.</p>
+        <p>A visual mock of the 3D table: scripted state, no game. Click one of your tiles to discard it; fire the moments from the bar below.</p>
       </header>
       <div className={styles.viewport} data-phone={phone || undefined}>
         <div className={styles.stage} data-day={day || undefined} onClick={() => dismiss()}>
           <StageCanvas day={day} />
           <div className={styles.overlays} aria-hidden="true">
             {[1, 2, 3].map((seat) => (
-              <Nameplate key={seat} seat={seat} day={day} />
+              <Nameplate key={seat} seat={seat} />
             ))}
             {[0, 1, 2, 3].map((seat) => (
               <Cheers key={seat} seat={seat} day={day} />
@@ -255,7 +251,15 @@ export function StageMock() {
           </div>
           <TickerStrip day={day} />
           {lowerThird ? <LowerThirdBar data={lowerThird} day={day} /> : null}
-          <Hud day={day} />
+          <SeatHud you>
+            <span className={styles.beta}>Beta</span>
+          </SeatHud>
+          <MockHand />
+        </div>
+      </div>
+      <div className={styles.viewport}>
+        <div className={styles.tray} data-mock="">
+          <MockMoves />
         </div>
       </div>
       <DebugBar day={day} theme={theme} />

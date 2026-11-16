@@ -4,11 +4,10 @@
 // opponents who throw the tile they drew, and buttons that fire the big moments.
 
 import { create } from "zustand";
+import type { Moment, Mood, StageModel } from "@/app/components/games/mahjong/stage/model";
 import { TILES, tilesFrom, type TileId } from "@/app/lib/games/mahjong/tiles";
 
-export type Mood = "idle" | "think" | "riichi" | "win";
-export type MomentKind = "riichi" | "win" | "draw";
-export type Moment = { id: number; kind: MomentKind; seat: number; how?: "ron" | "tsumo"; at: number };
+export type { Mood };
 export type Reaction = { id: number; seat: number; glyph: string; at: number; dx: number };
 export type LowerThird = { id: number; kind: "win" | "draw"; kicker: string; title: string; value?: string; lines: string[]; seat: number };
 export type Ticker = { id: number; text: string; seat: number };
@@ -80,8 +79,6 @@ type StageState = {
   moods: Mood[];
   points: number[];
   history: number[][];
-  /** Grows from 0 to 1 when a new point lands on the charts. */
-  chartAt: number;
   moment: Moment | null;
   reveal: number | null;
   reactions: Reaction[];
@@ -93,7 +90,6 @@ type StageState = {
   phone: boolean;
   ambient: boolean;
   reduced: boolean;
-  hoverTile: TileId | null;
 
   discard: (id: TileId) => void;
   ambientTurn: () => void;
@@ -108,7 +104,6 @@ type StageState = {
   setPhone: (phone: boolean) => void;
   setAmbient: (on: boolean) => void;
   setReduced: (on: boolean) => void;
-  setHover: (id: TileId | null) => void;
 };
 
 let nextId = 1;
@@ -143,7 +138,6 @@ function fresh() {
     moods: ["idle", "idle", "idle", "idle"] as Mood[],
     points: HISTORY.map((line) => line[line.length - 1]),
     history: HISTORY.map((line) => [...line]),
-    chartAt: 1,
     moment: null,
     reveal: null,
     reactions: [] as Reaction[],
@@ -160,17 +154,6 @@ export const useStage = create<StageState>((set, get) => {
     set((state) => ({ moods: state.moods.map((m, i) => (i === seat ? mood : m)) }));
     if (ms) later(ms, () => set((state) => ({ moods: state.moods.map((m, i) => (i === seat && m === mood ? "idle" : m)) })));
   };
-  const growChart = () => {
-    if (get().reduced) return set({ chartAt: 1 });
-    const start = performance.now();
-    set({ chartAt: 0 });
-    const step = () => {
-      const t = Math.min(1, (performance.now() - start) / 900);
-      set({ chartAt: t });
-      if (t < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  };
 
   return {
     ...fresh(),
@@ -179,7 +162,6 @@ export const useStage = create<StageState>((set, get) => {
     phone: false,
     ambient: true,
     reduced: false,
-    hoverTile: null,
 
     discard: (id) => {
       const state = get();
@@ -190,8 +172,7 @@ export const useStage = create<StageState>((set, get) => {
         hands: state.hands.map((h, seat) => (seat === 0 ? sortHand(hand) : h)),
         ponds: state.ponds.map((p, seat) => (seat === 0 ? [...p, id] : p)),
         drawn: false,
-        hoverTile: null,
-      });
+          });
       // The next draw comes round a moment later.
       later(state.reduced ? 50 : 1300, () => {
         const now = get();
@@ -287,7 +268,6 @@ export const useStage = create<StageState>((set, get) => {
         moods: state.moods.map((m, i) => (i === seat ? "win" : i === 0 ? m : "think")),
         lowerThird: null,
       });
-      growChart();
       get().burst(seat, 9);
       const who = seat === 0 ? "You" : SEATS[seat].short.charAt(0) + SEATS[seat].short.slice(1).toLowerCase();
       later(state.reduced ? 0 : 1500, () => {
@@ -344,6 +324,44 @@ export const useStage = create<StageState>((set, get) => {
     setPhone: (phone) => set({ phone }),
     setAmbient: (ambient) => set({ ambient }),
     setReduced: (reduced) => set({ reduced }),
-    setHover: (hoverTile) => set({ hoverTile }),
   };
 });
+
+type MockState = ReturnType<typeof useStage.getState>;
+
+/** The scripted state as the stage's model: the same shape the live table produces. */
+export function mockModel(state: MockState, day: boolean): StageModel {
+  return {
+    key: "mock",
+    seats: SEATS.map((info, seat) => ({
+      name: info.short,
+      symbol: info.symbol,
+      color: seatColor(seat, day),
+      wind: info.wind,
+      dealer: seat === 2,
+      points: state.points[seat],
+      history: state.history[seat],
+      riichi: state.riichi[seat],
+      turn: state.moods[seat] === "think",
+      mood: state.moods[seat],
+      tag: null,
+      deadline: null,
+    })),
+    hands: state.hands.map((tiles, seat) => {
+      if (state.reveal === seat) {
+        const shown = seat === 0 ? tiles : [...tiles, state.wins[seat]];
+        return { tiles: shown, count: shown.length, drawn: false, revealed: true, win: seat === 0 ? null : state.wins[seat] };
+      }
+      // Opponents' tiles are only a count, as at a live table.
+      if (seat !== 0) return { tiles: null, count: tiles.length, drawn: false, revealed: false, win: null };
+      return { tiles, count: tiles.length, drawn: state.drawn, revealed: false, win: null };
+    }),
+    melds: state.melds.map((list) => list.map((meld) => ({ tiles: meld.tiles, called: meld.called, added: null, closed: false }))),
+    ponds: state.ponds.map((pond) => pond.map((id) => ({ id, sideways: state.sideways.includes(id) }))),
+    dora: state.dora.slice(0, 1),
+    wall: state.pool.length,
+    round: { label: `${ROUND.wind} ${ROUND.hand}`, honba: ROUND.honba, sticks: state.sticks },
+    moment: state.moment,
+    last: null,
+  };
+}

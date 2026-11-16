@@ -1,23 +1,29 @@
 "use client";
 
-// The three opponents as camera-facing cutouts seated behind their side of the table. Each cutout is
-// placed from its own alpha: the bottom middle of the figure sits on the seat's anchor, just below the
-// table's edge, and the width of the figure's bottom sets the scale. So a bust (cut at the chest) and a
-// half-body portrait (cut at the waist) both come out with the same shoulders, the cut hidden behind
-// the rim, and taller art simply rises higher with no code change. Lit by the lamp from the table side,
-// with a thin rim of the seat's color on the far edge; a mood change cross-fades between images. A
-// missing image falls back to a plain silhouette, so the stage works without the pilot art.
+// The three opponents as camera-facing cutouts seated behind their side of the table: each seat's
+// talent, in the mood the hand puts them in (think on their turn, riichi when they declare, win when
+// they win). Half-body art with face metrics (art.ts) is scaled so the eyes come out the same distance
+// apart for every talent, and cropped a little under the collar: that line sits on the seat's anchor,
+// just below the table's edge, and nothing under it is ever drawn. Lit by the lamp from the table side,
+// with a thin rim of the seat's color on the far edge; a mood change cross-fades between images.
+// A talent without half-body art gets a lit card with their reaction art (or their ticker, if that
+// can't be loaded); while an image loads a plain silhouette stands in.
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { faceMetrics, portraitUrl, type FaceMetrics } from "@/app/components/games/mahjong/stage/art";
 import { portraitSpot } from "@/app/components/games/mahjong/stage/geometry";
-import { SEATS, seatColor, useStage, type Mood } from "@/app/components/games/mahjong/stage/mock-state";
-import { narrowness } from "@/app/components/games/mahjong/stage/rig";
+import { useStageStore, type Mood } from "@/app/components/games/mahjong/stage/model";
+import { hiddenBelow, narrowness } from "@/app/components/games/mahjong/stage/rig";
 import { fx } from "@/app/components/games/mahjong/stage/fx";
 import { radialTexture, silhouetteTexture } from "@/app/components/games/mahjong/stage/textures";
+import { artId, lookupArt, resolveArtUrl, type ChibiPose } from "@/app/lib/art-manifest";
+import { useArtStore } from "@/app/stores/art-store";
 
 const MOODS: Mood[] = ["idle", "think", "riichi", "win"];
+/** How far under the eyes the crop runs, in eye distances: just past the collar, above any neckline. */
+const COLLAR = 2.35;
 
 const vertex = /* glsl */ `
   uniform float uTime;
@@ -134,61 +140,191 @@ function measure(image: HTMLImageElement | HTMLCanvasElement | ImageBitmap): Fit
   return { cx: (minX + maxX + 1) / 2 / w, bottom: (h - 1 - bottom) / h, band: Math.max(0.05, widthSum / rows / w), height: tall / h, aspect: W / H };
 }
 
-type PortraitSet = { fallback: THREE.Texture; fallbackFit: Fit | null; loaded: Partial<Record<Mood, THREE.Texture>>; fit: Fit | null };
+// ── The lit card (talents without half-body art) ────────────────────────────
+const CARD_POSE: Record<Mood, ChibiPose> = { idle: "idle", think: "idle", riichi: "smug", win: "hype" };
+const CARD_W = 512;
+const CARD_H = 640;
 
-/** The four moods' images; until one has loaded (or if it never does) the silhouette stands in. */
-function usePortraitTextures(symbol: string | null, invalidate: () => void): PortraitSet {
-  const set = useMemo(() => {
-    const fallback = silhouetteTexture();
-    const result: PortraitSet = { fallback, fallbackFit: measure(fallback.image as HTMLCanvasElement), loaded: {}, fit: null };
-    if (!symbol) return result;
+function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawCard(canvas: HTMLCanvasElement, color: string, label: string, image: HTMLImageElement | null) {
+  const ctx = canvas.getContext("2d")!;
+  ctx.clearRect(0, 0, CARD_W, CARD_H);
+  roundedRect(ctx, 8, 8, CARD_W - 16, CARD_H - 16, 40);
+  const back = ctx.createLinearGradient(0, 0, 0, CARD_H);
+  back.addColorStop(0, "#1a2133");
+  back.addColorStop(1, "#0a0e18");
+  ctx.fillStyle = back;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  // The seat's color as a soft light from above.
+  const glow = ctx.createRadialGradient(CARD_W / 2, CARD_H * 0.32, 10, CARD_W / 2, CARD_H * 0.32, CARD_W * 0.7);
+  glow.addColorStop(0, color);
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
+  ctx.globalAlpha = 1;
+  if (image && image.naturalWidth) {
+    const box = { x: 30, y: 30, w: CARD_W - 60, h: CARD_H * 0.78 };
+    const k = Math.min(box.w / image.naturalWidth, box.h / image.naturalHeight);
+    const w = image.naturalWidth * k;
+    const h = image.naturalHeight * k;
+    ctx.drawImage(image, box.x + (box.w - w) / 2, box.y + box.h - h, w, h);
+  } else {
+    ctx.fillStyle = color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `800 ${label.length > 3 ? 120 : 150}px system-ui, sans-serif`;
+    ctx.fillText(label, CARD_W / 2, CARD_H * 0.4);
+  }
+  ctx.restore();
+  roundedRect(ctx, 8, 8, CARD_W - 16, CARD_H - 16, 40);
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = color;
+  ctx.stroke();
+}
+
+/** A card with the talent's reaction art for a pose, drawn at once with their ticker until the art loads (or if it can't be). */
+function cardTexture(symbol: string | null, label: string, color: string, pose: ChibiPose, invalidate: () => void): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = CARD_W;
+  canvas.height = CARD_H;
+  drawCard(canvas, color, label, null);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  const art = symbol ? lookupArt(useArtStore.getState().manifest, artId(symbol, "reaction", pose)) : null;
+  const src = art ? resolveArtUrl(Object.entries(art.srcset ?? {}).sort((a, b) => Number(a[0]) - Number(b[0])).find(([width]) => Number(width) >= 384)?.[1] ?? art.src) : null;
+  if (src) {
+    // Only a CORS-clean image may go into a WebGL texture: one that can't be read stays the ticker card.
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.decoding = "async";
+    image.onload = () => {
+      if (texture.userData.disposed) return;
+      drawCard(canvas, color, label, image);
+      texture.needsUpdate = true;
+      invalidate();
+    };
+    image.src = src;
+  }
+  return texture;
+}
+
+// ── Textures per seat ───────────────────────────────────────────────────────
+type PortraitSet = {
+  fallback: THREE.Texture;
+  fallbackFit: Fit | null;
+  loaded: Partial<Record<Mood, THREE.Texture>>;
+  /** Half-body art: where the face is. */
+  face: FaceMetrics | null;
+  /** No half-body art: the lit card stands in. */
+  card: boolean;
+};
+
+function disposeAll(textures: Iterable<THREE.Texture | undefined>) {
+  new Set(textures).forEach((texture) => {
+    if (!texture) return;
+    texture.userData.disposed = true;
+    texture.dispose();
+  });
+}
+
+/**
+ * The four moods' images; until one has loaded (or if it never does) the silhouette stands in. Half-body
+ * art depends on the talent alone, so a theme change or new seat colors never reload it; only the
+ * cards (drawn in the seat's color) are redrawn.
+ */
+function usePortraitTextures(symbol: string | null, name: string, color: string, invalidate: () => void): PortraitSet {
+  const ensureArt = useArtStore((s) => s.ensureLoaded);
+  const face = faceMetrics(symbol);
+  const manifestReady = useArtStore((s) => s.manifest !== null);
+  useEffect(() => {
+    if (!face) ensureArt();
+  }, [face, ensureArt]);
+
+  const fallback = useMemo(() => {
+    const texture = silhouetteTexture();
+    return { texture, fit: measure(texture.image as HTMLCanvasElement) };
+  }, []);
+  useEffect(() => () => disposeAll([fallback.texture]), [fallback]);
+
+  const half = useMemo(() => {
+    const loaded: Partial<Record<Mood, THREE.Texture>> = {};
+    const holder = { disposed: false };
+    if (!face) return { loaded, holder };
     for (const mood of MOODS) {
-      // Half-body art first; the older head-and-shoulders set stands in where it's missing.
-      const load = (paths: string[]): void => {
-        const [path, ...rest] = paths;
-        new THREE.TextureLoader().load(
-          path,
-          (texture) => {
-            texture.colorSpace = THREE.SRGBColorSpace;
-            texture.anisotropy = 4;
-            result.loaded[mood] = texture;
-            // Every mood is placed the way the idle image is (the set is drawn to one framing), so a
-            // mood change never shifts the figure; until idle arrives the first image to load stands in.
-            if (mood === "idle" || !result.fit) result.fit = measure(texture.image as HTMLImageElement) ?? result.fit;
-            invalidate();
-          },
-          undefined,
-          () => (rest.length ? load(rest) : invalidate())
-        );
-      };
-      load([`/art/_overlay/mahjong-pilot/half/${symbol}_${mood}.png`, `/art/_overlay/mahjong-pilot/${symbol}_${mood}.png`]);
+      const url = portraitUrl(symbol, mood);
+      if (!url) continue;
+      new THREE.TextureLoader().load(
+        url,
+        (texture) => {
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.anisotropy = 4;
+          if (holder.disposed) return texture.dispose();
+          loaded[mood] = texture;
+          invalidate();
+        },
+        undefined,
+        () => invalidate(),
+      );
     }
-    return result;
-  }, [symbol, invalidate]);
+    return { loaded, holder };
+  }, [symbol, face, invalidate]);
   useEffect(
     () => () => {
-      set.fallback.dispose();
-      Object.values(set.loaded).forEach((texture) => texture?.dispose());
+      half.holder.disposed = true;
+      disposeAll(Object.values(half.loaded));
     },
-    [set]
+    [half],
   );
-  return set;
+
+  const cards = useMemo(() => {
+    const loaded: Partial<Record<Mood, THREE.Texture>> = {};
+    if (face) return loaded;
+    const label = symbol ?? (name.trim().slice(0, 1).toUpperCase() || "?");
+    const byPose = new Map<ChibiPose, THREE.Texture>();
+    for (const mood of MOODS) {
+      const pose = CARD_POSE[mood];
+      if (!byPose.has(pose)) byPose.set(pose, cardTexture(symbol, label, color, pose, invalidate));
+      loaded[mood] = byPose.get(pose);
+    }
+    return loaded;
+    // The manifest arriving redraws the cards with the reaction art.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol, face, name, color, manifestReady, invalidate]);
+  useEffect(() => () => disposeAll(Object.values(cards)), [cards]);
+
+  return { fallback: fallback.texture, fallbackFit: fallback.fit, loaded: face ? half.loaded : cards, face, card: !face };
 }
 
 const pick = (set: PortraitSet, mood: Mood) => set.loaded[mood] ?? set.loaded.idle ?? set.fallback;
 
 function Portrait({ seat, day }: { seat: number; day: boolean }) {
-  const info = SEATS[seat];
   const invalidate = useThree((s) => s.invalidate);
   const aspect = useThree((s) => s.size.width / Math.max(1, s.size.height));
-  const mood = useStage((s) => s.moods[seat]);
-  const reduced = useStage((s) => s.reduced);
-  const textures = usePortraitTextures(info.symbol, invalidate);
+  const symbol = useStageStore((s) => s.model.seats[seat]?.symbol ?? null);
+  const name = useStageStore((s) => s.model.seats[seat]?.name ?? "");
+  const color = useStageStore((s) => s.model.seats[seat]?.color ?? "#3fb8f5");
+  const mood = useStageStore((s) => s.model.seats[seat]?.mood ?? "idle");
+  const reduced = useStageStore((s) => s.ui.reduced);
+  const textures = usePortraitTextures(symbol, name, color, invalidate);
   const group = useRef<THREE.Group>(null);
   const halo = useMemo(() => radialTexture(0.05, 1.3), []);
   useEffect(() => () => halo.dispose(), [halo]);
-  const color = seatColor(seat, day);
   const spot = portraitSpot(seat, narrowness(aspect));
+  // The crop line sits just under where the rim stops hiding things from the lens.
+  const anchorY = Math.min(spot.p[1] + 2, hiddenBelow(aspect, spot.p[0], spot.p[2]) - 0.9);
   const outer = seat === 1 ? 1 : seat === 3 ? -1 : 0;
 
   const material = useMemo(
@@ -211,10 +347,10 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
           uCut: { value: new THREE.Vector2(0, 0.0001) },
           uTime: { value: 0 },
           uPhase: { value: seat * 1.9 },
-          uSway: { value: 1 },
+          uSway: { value: 0 },
         },
       }),
-    [seat]
+    [seat],
   );
   useEffect(() => () => material.dispose(), [material]);
   const plane = useRef<THREE.Mesh>(null);
@@ -235,8 +371,8 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
     const mesh = plane.current;
     if (!g || !mesh) return;
     // Face the lens: turn about the vertical, and lean back part of the way toward it so a steep phone
-    // camera doesn't see the cutouts squashed. The group's origin is the figure's bottom, below the
-    // table's edge, so leaning never lifts the cut into view.
+    // camera doesn't see the cutouts squashed. The group's origin is the crop line, below the table's
+    // edge, so leaning never lifts the cut into view.
     const camera = state.camera;
     const dx = camera.position.x - g.position.x;
     const dz = camera.position.z - g.position.z;
@@ -245,35 +381,56 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
     g.rotation.set(-Math.atan2(dy, Math.hypot(dx, dz)) * 0.6, Math.atan2(dx, dz), 0, "YXZ");
     g.scale.setScalar(1 + 0.05 * win);
 
-    // Size and place the plane from the figure's alpha bounds.
-    const fit = textures.fit ?? textures.fallbackFit;
-    if (fit) {
+    const f = fade.current;
+    const t = reduced ? 1 : Math.min(1, (performance.now() - f.at) / 260);
+    const u = (mesh.material as THREE.ShaderMaterial).uniforms;
+    const a = pick(textures, f.from);
+    const b = pick(textures, f.to);
+
+    // Size and place the plane: half-body art by its face, a card by its width, the silhouette by its outline.
+    const image = b.image as { width?: number; height?: number } | undefined;
+    let figure = 0;
+    if (textures.face && b !== textures.fallback && image?.width && image.height) {
+      const face = textures.face;
+      const imageAspect = image.width / image.height;
+      const width = spot.ipd / face.ipd;
+      const height = width / imageAspect;
+      const cropTop = Math.min(0.98, face.eyeY + COLLAR * face.ipd * imageAspect);
+      const cropV = 1 - cropTop;
+      mesh.scale.set(width, height, 1);
+      mesh.position.set(0, height * (0.5 - cropV), 0);
+      u.uCut.value.set(cropV, 0.035);
+      figure = height * cropTop * 0.92;
+    } else if (textures.card && b !== textures.fallback) {
+      const width = spot.card;
+      const height = (width * CARD_H) / CARD_W;
+      mesh.scale.set(width, height, 1);
+      mesh.position.set(0, height * 0.5 - 1.5, 0);
+      u.uCut.value.set(0, 0.0001);
+      figure = height * 0.8;
+    } else if (textures.fallbackFit) {
+      const fit = textures.fallbackFit;
       let width = spot.shoulder / fit.band;
       const tall = (fit.height * width) / fit.aspect;
       if (tall > spot.maxHeight) width *= spot.maxHeight / tall;
       const height = width / fit.aspect;
       mesh.scale.set(width, height, 1);
       mesh.position.set(-(fit.cx - 0.5) * width, height * (0.5 - fit.bottom), 0);
-      (mesh.material as THREE.ShaderMaterial).uniforms.uCut.value.set(fit.bottom, fit.height * 0.12);
-      const halo = haloRef.current;
-      if (halo) {
-        const figure = fit.height * height;
-        halo.position.set(0, figure * 0.62, -0.8);
-        halo.scale.set(figure * 1.5, figure * 1.3, 1);
-      }
+      u.uCut.value.set(fit.bottom, fit.height * 0.12);
+      figure = fit.height * height;
+    }
+    const haloMesh = haloRef.current;
+    if (haloMesh) {
+      haloMesh.position.set(0, figure * 0.62, -0.8);
+      haloMesh.scale.set(figure * 1.5, figure * 1.3, 1);
     }
 
-    const f = fade.current;
-    const t = reduced ? 1 : Math.min(1, (performance.now() - f.at) / 260);
-    const u = (mesh.material as THREE.ShaderMaterial).uniforms;
-    const a = pick(textures, f.from);
     u.uA.value = a;
-    u.uB.value = pick(textures, f.to);
+    u.uB.value = b;
     u.uMix.value = t;
-    const image = a.image as { width?: number; height?: number } | undefined;
-    if (image?.width && image.height) u.uTexel.value.set(1 / image.width, 1 / image.height);
+    const shown = a.image as { width?: number; height?: number } | undefined;
+    if (shown?.width && shown.height) u.uTexel.value.set(1 / shown.width, 1 / shown.height);
     u.uTime.value = state.clock.elapsedTime;
-    u.uSway.value = reduced ? 0 : 1;
     u.uOuter.value = outer;
     u.uRim.value.set(color);
     u.uWarm.value.set(day ? "#fff4e6" : "#ffe6cc");
@@ -281,13 +438,12 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
     const base = day ? 0.95 : 0.92;
     // The room dims for a big moment; the winner stays in the spotlight.
     u.uLight.value = base * (0.3 + 0.7 * fx.room) + win * (day ? 0.4 : 0.5);
-    const haloMesh = haloRef.current;
     if (haloMesh) (haloMesh.material as THREE.MeshBasicMaterial).opacity = (day ? 0 : 0.07) + win * (day ? 0.18 : 0.28);
     if (t < 1) invalidate();
   });
 
   return (
-    <group ref={group} position={spot.p}>
+    <group ref={group} position={[spot.p[0], anchorY, spot.p[2]]}>
       <mesh ref={haloRef} renderOrder={-1}>
         <planeGeometry args={[1, 1]} />
         <meshBasicMaterial map={halo} color={color} transparent opacity={0} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />

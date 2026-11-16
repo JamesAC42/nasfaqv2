@@ -1,106 +1,201 @@
 "use client";
 
-// Every tile on the table in one instanced mesh (instance i is tile id i). A layout maps the mock state
-// to a target pose per tile; whenever a target changes the tile tweens there from wherever it is, with
-// an arc for long moves. So a discard, a fresh draw, a sideways riichi tile and the win reveal all fall
-// out of the same mechanism.
+// Every tile on the table in one instanced mesh. A layout maps the stage model to a target pose per
+// tile, keyed by what the tile is: "t<id>" for a tile the viewer may see (its face comes from the id),
+// "h<seat>-<n>" for the backs of a hidden hand, "d<n>" for the face-down dead wall. Keys get instance
+// slots as they appear; whenever a key's target changes the tile tweens there from wherever it is, with
+// an arc for long moves, and a key that appears flies in from where it came from (the wall for a draw,
+// the hand for a discard or a call). So a discard, a fresh draw, a call, a sideways riichi tile and the
+// reveal at the end all fall out of the same mechanism. A hidden tile has no id to draw: its face is
+// blank, and its key says nothing about which tile it is.
 
 import { useEffect, useMemo, useRef } from "react";
-import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
-import { TILES, type TileId } from "@/app/lib/games/mahjong/tiles";
+import type { TileId } from "@/app/lib/games/mahjong/tiles";
 import { TILE_COLORS } from "@/app/components/games/mahjong/tile-art";
 import { FLAT, ROWS, SEAT_YAW, TABLE, TILE, pose, seatPoint, type Pose } from "@/app/components/games/mahjong/stage/geometry";
-import { useStage } from "@/app/components/games/mahjong/stage/mock-state";
+import { useStageStore, type StageMeld, type StageModel } from "@/app/components/games/mahjong/stage/model";
+import { handKey, overlayEls } from "@/app/components/games/mahjong/stage/overlay";
 import { handAnchor, type HandAnchor } from "@/app/components/games/mahjong/stage/rig";
 import { ATLAS, cellOf, tileAtlas } from "@/app/components/games/mahjong/stage/textures";
 
-type Target = Pose & { delay?: number; glow?: number; hand?: boolean };
-type Track = { cur: Pose; from: Pose; to: Target; t0: number; dur: number; arc: number; lift: number; glow: number; shown: boolean };
+type Zone = "hand" | "hidden" | "pond" | "meld" | "reveal" | "dora";
+type Target = Pose & { cell: number; zone: Zone; seat: number; delay?: number; glow?: number; mine?: TileId };
+type Track = { slot: number; cur: Pose; from: Pose; to: Target; t0: number; dur: number; arc: number; lift: number; glow: number; dim: number };
+
+/** Instance slots: every visible tile (136), four hidden hands and the dead wall, with room to spare. */
+const CAPACITY = 200;
+/** A blank face (hidden tiles): the shader draws no atlas cell for it. */
+const BLANK = -1;
 
 const clone = (p: Pose): Pose => ({ p: [...p.p], pitch: p.pitch, yaw: p.yaw, roll: p.roll, scale: p.scale });
 const same = (a: Pose, b: Pose) =>
   Math.abs(a.p[0] - b.p[0]) + Math.abs(a.p[1] - b.p[1]) + Math.abs(a.p[2] - b.p[2]) < 1e-3 && Math.abs(a.pitch - b.pitch) + Math.abs(a.yaw - b.yaw) + Math.abs(a.roll - b.roll) < 1e-3 && a.scale === b.scale;
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
+// ── The wall ─────────────────────────────────────────────────────────────────
+/** Stacks per side, two tiles high, as at a real table. */
+const WALL_STACKS = 17;
+/**
+ * Distance of each wall's middle from the center: right up against the hand, so from your chair the
+ * wall in front of you stays clear of your third row of discards.
+ */
+const WALL_ROW = ROWS.hand - TILE.d / 2 - 0.5 - TILE.h / 2;
+const wallStacks = (tiles: number) => Math.min(WALL_STACKS * 4, Math.ceil(Math.max(0, tiles) / 2));
+/** Where stack `index` stands (stacks fill your wall first, then right, across and left). */
+function wallStack(index: number, layer: number): Pose {
+  const seat = Math.floor(index / WALL_STACKS) % 4;
+  const x = ((index % WALL_STACKS) - (WALL_STACKS - 1) / 2) * (TILE.w + 0.05);
+  const [px, , pz] = seatPoint(seat, x, 0, WALL_ROW);
+  return pose([px, TILE.d / 2 + layer * (TILE.d + 0.02), pz], -FLAT, SEAT_YAW[seat]);
+}
+
 // ── Layout ───────────────────────────────────────────────────────────────────
-type LayoutInput = Pick<ReturnType<typeof useStage.getState>, "hands" | "wins" | "drawn" | "melds" | "ponds" | "sideways" | "dora" | "reveal">;
+const meldSpan = (melds: StageMeld[]) => melds.reduce((sum, meld) => sum + meld.tiles.length * TILE.w + (meld.called >= 0 ? TILE.h - TILE.w : 0) + 0.4, 0);
 
-function layout(state: LayoutInput, anchor: HandAnchor, now: boolean): Map<TileId, Target> {
-  const out = new Map<TileId, Target>();
+function layout(model: StageModel, anchor: HandAnchor): Map<string, Target> {
+  const out = new Map<string, Target>();
   const { w, h, d } = TILE;
+  const put = (key: string, target: Target) => {
+    if (!out.has(key)) out.set(key, target);
+  };
+  const face = (id: TileId) => cellOf(id);
 
-  // Your hand.
-  const mine = state.hands[0];
-  const revealMine = state.reveal === 0;
-  const total = mine.length * anchor.spacing + (state.drawn ? 0.9 : 0);
-  mine.forEach((id, i) => {
-    const gap = state.drawn && i === mine.length - 1 ? 0.9 : 0;
-    const x = -total / 2 + anchor.spacing * (i + 0.5) + gap;
-    if (revealMine) {
-      // Laid flat where the hand stood, just past the wall.
-      out.set(id, { ...pose([x, d / 2, ROWS.hand + 0.6], FLAT, 0), delay: now ? 0 : i * 0.06 });
-      return;
-    }
-    out.set(id, { ...pose([anchor.center[0] + x, anchor.center[1], anchor.center[2]], anchor.pitch, 0), hand: true });
-  });
-
-  // Opponents' hands: standing backs, or flipped to face the table on a win.
-  for (const seat of [1, 2, 3]) {
-    const hand = state.reveal === seat ? [...state.hands[seat], state.wins[seat]] : state.hands[seat];
-    const meldWidth = state.melds[seat].reduce((sum, meld) => sum + meld.tiles.length * w + (h - w) + 0.4, 0);
-    const span = hand.length * w * 1.02;
-    const shift = -meldWidth / 2;
-    hand.forEach((id, i) => {
-      const isWin = state.reveal === seat && i === hand.length - 1;
-      const x = shift - span / 2 + w * 1.02 * (i + 0.5) + (isWin ? 0.7 : 0);
-      if (state.reveal === seat) {
-        out.set(id, { ...pose(seatPoint(seat, x, h / 2 + 0.25, ROWS.hand + 0.2), -0.32, SEAT_YAW[seat] + Math.PI), delay: now ? 0 : 0.35 + i * 0.07, glow: isWin ? 1 : 0 });
-      } else {
-        out.set(id, pose(seatPoint(seat, x, h / 2, ROWS.hand), 0, SEAT_YAW[seat]));
-      }
+  // ── Your hand (or the bottom seat's) ──
+  const mine = model.hands[0];
+  const meldsMine = meldSpan(model.melds[0]);
+  if (mine.tiles && !mine.revealed) {
+    const tiles = mine.tiles;
+    const total = tiles.length * anchor.spacing + (mine.drawn ? 0.9 : 0);
+    // On the table the hand steps left to clear your called sets at the right-hand corner.
+    let shift = 0;
+    if (!anchor.floating && meldsMine > 0) shift = Math.min(0, TABLE.felt - 4 - meldsMine - total / 2);
+    tiles.forEach((id, i) => {
+      const gap = mine.drawn && i === tiles.length - 1 ? 0.9 : 0;
+      const x = -total / 2 + anchor.spacing * (i + 0.5) + gap + shift;
+      put(`t${id}`, { ...pose([anchor.center[0] + x, anchor.center[1], anchor.center[2]], anchor.pitch, 0), cell: face(id), zone: "hand", seat: 0, mine: id });
     });
-    // Called sets lie flat at the owner's right, the taken tile sideways.
-    let cursor = TABLE.felt - 3;
-    for (const meld of state.melds[seat]) {
-      const widths = meld.tiles.map((_, i) => (i === meld.called ? h : w));
-      for (let i = meld.tiles.length - 1; i >= 0; i--) {
-        const width = widths[i];
-        const cx = cursor - width / 2;
-        cursor -= width + 0.06;
-        const sideways = i === meld.called;
-        out.set(meld.tiles[i], pose(seatPoint(seat, cx, d / 2, ROWS.meld + (sideways ? (h - w) / 2 : 0)), FLAT, SEAT_YAW[seat], sideways ? Math.PI / 2 : 0));
-      }
-      cursor -= 0.4;
+  } else if (mine.tiles) {
+    const tiles = mine.tiles;
+    const total = tiles.length * w * 1.02 + (mine.win !== null ? 0.7 : 0);
+    tiles.forEach((id, i) => {
+      const isWin = id === mine.win;
+      const x = -total / 2 + w * 1.02 * (i + 0.5) + (isWin ? 0.7 : 0) - meldsMine / 2;
+      put(`t${id}`, { ...pose([x, d / 2, ROWS.hand + 0.6], FLAT, 0), cell: face(id), zone: "reveal", seat: 0, delay: i * 0.05, glow: isWin ? 0.8 : 0 });
+    });
+  } else {
+    // A spectator's bottom seat: standing backs, turned to the lens.
+    const n = Math.min(14, mine.count);
+    const span = n * w * 1.02 + (mine.drawn ? 0.7 : 0);
+    for (let i = 0; i < n; i++) {
+      const x = -span / 2 + w * 1.02 * (i + 0.5) + (mine.drawn && i === n - 1 ? 0.7 : 0) - meldsMine / 2;
+      put(`h0-${i}`, { ...pose(seatPoint(0, x, h / 2, ROWS.hand), 0, SEAT_YAW[0] + Math.PI), cell: BLANK, zone: "hidden", seat: 0 });
     }
   }
 
-  // Ponds: six to a row, in front of the plinth.
-  state.ponds.forEach((pond, seat) => {
+  // ── Opponents' hands: standing backs, or turned to face the table when shown ──
+  for (const seat of [1, 2, 3]) {
+    const hand = model.hands[seat];
+    const shift = -meldSpan(model.melds[seat]) / 2;
+    if (hand.tiles) {
+      const tiles = hand.tiles;
+      const span = tiles.length * w * 1.02 + (hand.win !== null ? 0.7 : 0);
+      tiles.forEach((id, i) => {
+        const isWin = id === hand.win;
+        const x = shift - span / 2 + w * 1.02 * (i + 0.5) + (isWin ? 0.7 : 0);
+        put(`t${id}`, { ...pose(seatPoint(seat, x, h / 2 + 0.25, ROWS.hand + 0.2), -0.32, SEAT_YAW[seat] + Math.PI), cell: face(id), zone: "reveal", seat, delay: 0.35 + i * 0.06, glow: isWin ? 0.8 : 0 });
+      });
+    } else {
+      const n = Math.min(14, hand.count);
+      const span = n * w * 1.02 + (hand.drawn ? 0.7 : 0);
+      for (let i = 0; i < n; i++) {
+        const x = shift - span / 2 + w * 1.02 * (i + 0.5) + (hand.drawn && i === n - 1 ? 0.7 : 0);
+        put(`h${seat}-${i}`, { ...pose(seatPoint(seat, x, h / 2, ROWS.hand), 0, SEAT_YAW[seat]), cell: BLANK, zone: "hidden", seat });
+      }
+    }
+  }
+
+  // ── Called sets: flat at the owner's right, the taken tile sideways (a kakan's added tile beside it) ──
+  model.melds.forEach((melds, seat) => {
+    let cursor = TABLE.felt - 3;
+    for (const meld of melds) {
+      for (let i = meld.tiles.length - 1; i >= 0; i--) {
+        const sideways = i === meld.called;
+        const width = sideways ? h : w;
+        const cx = cursor - width / 2;
+        cursor -= width + 0.06;
+        const id = meld.tiles[i];
+        const down = meld.closed && (i === 0 || i === meld.tiles.length - 1);
+        const z = ROWS.meld + (sideways ? (h - w) / 2 : 0);
+        put(`t${id}`, { ...pose(seatPoint(seat, cx, d / 2, z), down ? -FLAT : FLAT, SEAT_YAW[seat], sideways ? Math.PI / 2 : 0), cell: face(id), zone: "meld", seat });
+        if (sideways && meld.added !== null) {
+          put(`t${meld.added}`, { ...pose(seatPoint(seat, cx, d / 2, z - w - 0.06), FLAT, SEAT_YAW[seat], Math.PI / 2), cell: face(meld.added), zone: "meld", seat });
+        }
+      }
+      cursor -= 0.4;
+    }
+  });
+
+  // ── Ponds: six to a row, in front of the plinth ──
+  model.ponds.forEach((pond, seat) => {
     let row = 0;
     let cursor = -3 * w;
-    pond.forEach((id, i) => {
+    pond.forEach((tile, i) => {
       if (i > 0 && i % 6 === 0 && row < 2) {
         row += 1;
         cursor = -3 * w;
       }
-      const sideways = state.sideways.includes(id);
-      const width = sideways ? h : w;
+      const width = tile.sideways ? h : w;
       const cx = cursor + width / 2;
       cursor += width + 0.06;
-      const z = ROWS.pond + h / 2 + row * (h + 0.08) + (sideways ? (h - w) / 2 : 0);
-      out.set(id, pose(seatPoint(seat, cx, d / 2, z), FLAT, SEAT_YAW[seat], sideways ? Math.PI / 2 : 0));
+      const z = ROWS.pond + h / 2 + row * (h + 0.08) + (tile.sideways ? (h - w) / 2 : 0);
+      put(`t${tile.id}`, { ...pose(seatPoint(seat, cx, d / 2, z), FLAT, SEAT_YAW[seat], tile.sideways ? Math.PI / 2 : 0), cell: face(tile.id), zone: "pond", seat, glow: tile.id === model.last ? 0.3 : 0 });
     });
   });
 
-  // The dora rack on the plinth: the indicator face up, the rest of the dead wall face down.
+  // ── The dora rack on the plinth: indicators face up, the rest of its five face down ──
   const s = 0.6;
-  state.dora.forEach((id, i) => {
+  for (let i = 0; i < 5; i++) {
     const x = (i - 2) * w * s * 1.08;
-    out.set(id, pose([x, TABLE.plinthHeight + 0.35 + (h * s) / 2, -TABLE.plinth + 2.4], -0.18, i === 0 ? 0 : Math.PI, 0, s));
-  });
+    const p = pose([x, TABLE.plinthHeight + 0.35 + (h * s) / 2, -TABLE.plinth + 2.4], -0.18, 0, 0, s);
+    const id = model.dora[i];
+    if (id !== undefined) put(`t${id}`, { ...p, cell: face(id), zone: "dora", seat: 0 });
+    else put(`d${i}`, { ...p, yaw: Math.PI, cell: BLANK, zone: "dora", seat: 0 });
+  }
   return out;
+}
+
+/** Where a tile that has just appeared comes from. */
+function spawnPose(target: Target, model: StageModel, anchor: HandAnchor): Pose {
+  const { w, h } = TILE;
+  const handEnd = (seat: number): Pose => {
+    if (seat === 0 && model.hands[0].tiles && !model.hands[0].revealed) {
+      const span = model.hands[0].tiles.length * anchor.spacing;
+      return pose([anchor.center[0] + span / 2, anchor.center[1], anchor.center[2]], anchor.pitch, 0);
+    }
+    const span = Math.min(14, model.hands[seat].count) * w * 1.02;
+    return pose(seatPoint(seat, span / 2, h / 2, ROWS.hand), 0, SEAT_YAW[seat]);
+  };
+  switch (target.zone) {
+    case "hand":
+    case "hidden":
+      // Off the head of the wall: the stack just taken.
+      return wallStack(Math.min(WALL_STACKS * 4 - 1, wallStacks(model.wall)), 1);
+    case "pond":
+    case "meld":
+      return handEnd(target.seat);
+    case "reveal": {
+      // Stood up where the hand was, then laid down.
+      const start = clone(target);
+      start.pitch = 0;
+      start.yaw = target.seat === 0 ? Math.PI : SEAT_YAW[target.seat];
+      return start;
+    }
+    case "dora":
+      return { ...clone(target), yaw: target.yaw + Math.PI };
+  }
 }
 
 // ── Material ─────────────────────────────────────────────────────────────────
@@ -122,10 +217,12 @@ function tileMaterial(atlas: THREE.Texture, back: string) {
         `#include <common>
         attribute float aCell;
         attribute float aGlow;
+        attribute float aDim;
         varying vec3 vObjPos;
         varying vec3 vObjNormal;
         varying float vCell;
-        varying float vGlow;`
+        varying float vGlow;
+        varying float vDim;`
       )
       .replace(
         "#include <begin_vertex>",
@@ -133,7 +230,8 @@ function tileMaterial(atlas: THREE.Texture, back: string) {
         vObjPos = position;
         vObjNormal = normal;
         vCell = aCell;
-        vGlow = aGlow;`
+        vGlow = aGlow;
+        vDim = aDim;`
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -147,7 +245,8 @@ function tileMaterial(atlas: THREE.Texture, back: string) {
         varying vec3 vObjPos;
         varying vec3 vObjNormal;
         varying float vCell;
-        varying float vGlow;`
+        varying float vGlow;
+        varying float vDim;`
       )
       .replace(
         "#include <map_fragment>",
@@ -158,20 +257,22 @@ function tileMaterial(atlas: THREE.Texture, back: string) {
         vec3 body = mix(uIvory, uBack, backMask);
         // A thin dark seam where the layers meet.
         body *= 1.0 - 0.35 * (1.0 - smoothstep(0.0, 0.05, abs(vObjPos.z - split)));
+        // The cell index arrives as an interpolated varying, which is not exactly an integer on every
+        // fragment (24.0 can arrive as 23.99998). Unrounded, floor() then puts stray fragments of a
+        // tile whose cell starts an atlas row (9m, 8p, 7s, green dragon) into the wrong row: speckled
+        // faces. A negative cell is a hidden tile: a blank ivory face.
+        float cell = floor(vCell + 0.5);
         // The face, from the atlas.
-        float faceMask = smoothstep(0.7, 0.92, vObjNormal.z) * (1.0 - backMask);
+        float faceMask = smoothstep(0.7, 0.92, vObjNormal.z) * (1.0 - backMask) * step(-0.5, cell);
         // Half a texel in from the cell's edge, so filtering never reaches the neighboring face.
         vec2 inset = vec2(0.5 / ${ATLAS.cellW}.0, 0.5 / ${ATLAS.cellH}.0);
         vec2 fuv = clamp(vObjPos.xy / (2.0 * uHalf.xy) + 0.5, inset, 1.0 - inset);
-        // The cell index arrives as an interpolated varying, which is not exactly an integer on every
-        // fragment (24.0 can arrive as 23.99998). Unrounded, floor() then puts stray fragments of a
-        // tile whose cell starts an atlas row (9m, 8p, 7s, green dragon) into the wrong row: speckled faces.
-        float cell = floor(vCell + 0.5);
-        float col = mod(cell, ${ATLAS.cols}.0);
-        float row = floor(cell / ${ATLAS.cols}.0);
+        float safeCell = max(cell, 0.0);
+        float col = mod(safeCell, ${ATLAS.cols}.0);
+        float row = floor(safeCell / ${ATLAS.cols}.0);
         vec2 auv = vec2((col + fuv.x) / ${ATLAS.cols}.0, 1.0 - (row + 1.0 - fuv.y) / ${ATLAS.rows}.0);
         vec3 face = texture2D(uAtlas, auv).rgb;
-        diffuseColor.rgb *= mix(body, face, faceMask);
+        diffuseColor.rgb *= mix(body, face, faceMask) * (1.0 - 0.42 * vDim);
         `
       )
       .replace(
@@ -180,58 +281,163 @@ function tileMaterial(atlas: THREE.Texture, back: string) {
         totalEmissiveRadiance += vGlow * uGlowColor * 0.55;`
       );
   };
-  material.customProgramCacheKey = () => "stage-tile-v2";
+  material.customProgramCacheKey = () => "stage-tile-v3";
   return material;
 }
 
+function tileGeometry(count: number) {
+  const box = new RoundedBoxGeometry(TILE.w, TILE.h, TILE.d, 2, 0.32);
+  box.setAttribute("aCell", new THREE.InstancedBufferAttribute(new Float32Array(count).fill(BLANK), 1));
+  box.setAttribute("aGlow", new THREE.InstancedBufferAttribute(new Float32Array(count), 1));
+  box.setAttribute("aDim", new THREE.InstancedBufferAttribute(new Float32Array(count), 1));
+  return box;
+}
+
+const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
+
+/**
+ * One frame of the tiles: tween every track toward its target, lift and light your tiles, and pin
+ * your tiles' buttons over them. Returns whether anything is still moving (so another frame is due).
+ */
+function stepTiles(mesh: THREE.InstancedMesh, tracks: Map<string, Track>, reduced: boolean, camera: THREE.Camera, size: { width: number; height: number }, dummy: THREE.Object3D, corner: THREE.Vector3): boolean {
+  const glows = mesh.geometry.getAttribute("aGlow") as THREE.InstancedBufferAttribute;
+  const dims = mesh.geometry.getAttribute("aDim") as THREE.InstancedBufferAttribute;
+  const { hover, selected, dim, glow: lit } = useStageStore.getState().ui;
+  const now = performance.now() / 1000;
+  const { width: sw, height: sh } = size;
+  let moving = false;
+  let glowDirty = false;
+  for (const [, track] of tracks) {
+    const { from, to } = track;
+    const raw = track.dur <= 0 ? (now >= track.t0 ? 1 : 0) : Math.min(1, Math.max(0, (now - track.t0) / track.dur));
+    if (raw < 1) moving = true;
+    const t = ease(raw);
+    const cur = track.cur;
+    cur.p[0] = from.p[0] + (to.p[0] - from.p[0]) * t;
+    cur.p[1] = from.p[1] + (to.p[1] - from.p[1]) * t + Math.sin(Math.PI * t) * track.arc;
+    cur.p[2] = from.p[2] + (to.p[2] - from.p[2]) * t;
+    cur.pitch = from.pitch + (to.pitch - from.pitch) * t;
+    cur.yaw = from.yaw + (to.yaw - from.yaw) * t;
+    cur.roll = from.roll + (to.roll - from.roll) * t;
+    cur.scale = from.scale + (to.scale - from.scale) * t;
+    // Your tiles: the pointed-at one rises a little toward you, the lifted one more.
+    const id = to.mine;
+    const liftTarget = id === undefined ? 0 : selected === id ? 1.5 : hover === id ? 0.6 : 0;
+    const nextLift = reduced ? liftTarget : track.lift + (liftTarget - track.lift) * 0.3;
+    track.lift = Math.abs(nextLift - liftTarget) < 1e-3 ? liftTarget : nextLift;
+    if (track.lift !== liftTarget) moving = true;
+    const glowTarget = (to.glow ?? 0) + track.lift * 0.08 + (id !== undefined && lit?.has(id) ? 0.45 : 0);
+    if (Math.abs(glowTarget - track.glow) > 1e-3) {
+      track.glow = glowTarget;
+      glows.setX(track.slot, glowTarget);
+      glowDirty = true;
+    }
+    const dimTarget = id !== undefined && dim?.has(id) ? 1 : 0;
+    if (dimTarget !== track.dim) {
+      track.dim = dimTarget;
+      dims.setX(track.slot, dimTarget);
+      dims.needsUpdate = true;
+    }
+    dummy.position.set(cur.p[0], cur.p[1] + track.lift * 1.1, cur.p[2] + track.lift * 0.35);
+    dummy.rotation.set(cur.pitch, cur.yaw, cur.roll, "YXZ");
+    dummy.scale.setScalar(cur.scale);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(track.slot, dummy.matrix);
+
+    // Pin your tile's button over it: the screen box of the tile's face.
+    if (id !== undefined) {
+      const el = overlayEls.get(handKey(id));
+      if (el) {
+        let x0 = Infinity;
+        let y0 = Infinity;
+        let x1 = -Infinity;
+        let y1 = -Infinity;
+        for (const [cx, cy] of [
+          [-1, -1],
+          [1, -1],
+          [-1, 1],
+          [1, 1],
+        ]) {
+          corner.set((cx * TILE.w) / 2, (cy * TILE.h) / 2, TILE.d / 2).applyMatrix4(dummy.matrix).project(camera);
+          const px = ((corner.x + 1) / 2) * sw;
+          const py = ((1 - corner.y) / 2) * sh;
+          x0 = Math.min(x0, px);
+          x1 = Math.max(x1, px);
+          y0 = Math.min(y0, py);
+          y1 = Math.max(y1, py);
+        }
+        el.style.transform = `translate3d(${x0.toFixed(1)}px, ${y0.toFixed(1)}px, 0)`;
+        el.style.width = `${(x1 - x0).toFixed(1)}px`;
+        el.style.height = `${(y1 - y0).toFixed(1)}px`;
+        el.style.visibility = "visible";
+      }
+    }
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (glowDirty) glows.needsUpdate = true;
+  return moving;
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
-export function Tiles({ day, backColor }: { day: boolean; backColor: string }) {
+export function Tiles({ backColor }: { backColor: string }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const invalidate = useThree((state) => state.invalidate);
   const width = useThree((state) => state.size.width);
   const aspect = useThree((state) => state.size.width / Math.max(1, state.size.height));
-  const geometry = useMemo(() => {
-    const box = new RoundedBoxGeometry(TILE.w, TILE.h, TILE.d, 2, 0.32);
-    const cells = new Float32Array(TILES);
-    for (let id = 0; id < TILES; id++) cells[id] = cellOf(id);
-    box.setAttribute("aCell", new THREE.InstancedBufferAttribute(cells, 1));
-    box.setAttribute("aGlow", new THREE.InstancedBufferAttribute(new Float32Array(TILES), 1));
-    return box;
-  }, []);
+  const geometry = useMemo(() => tileGeometry(CAPACITY), []);
   const atlas = useMemo(() => tileAtlas(() => invalidate()), [invalidate]);
   const material = useMemo(() => tileMaterial(atlas, backColor), [atlas, backColor]);
   useEffect(() => () => material.dispose(), [material]);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
-  const hands = useStage((s) => s.hands);
-  const wins = useStage((s) => s.wins);
-  const drawn = useStage((s) => s.drawn);
-  const melds = useStage((s) => s.melds);
-  const ponds = useStage((s) => s.ponds);
-  const sideways = useStage((s) => s.sideways);
-  const dora = useStage((s) => s.dora);
-  const reveal = useStage((s) => s.reveal);
-  const reduced = useStage((s) => s.reduced);
-  const hoverTile = useStage((s) => s.hoverTile);
+  const model = useStageStore((s) => s.model);
+  const reduced = useStageStore((s) => s.ui.reduced);
   const anchor = useMemo(() => handAnchor(aspect, width), [aspect, width]);
-  const targets = useMemo(() => layout({ hands, wins, drawn, melds, ponds, sideways, dora, reveal }, anchor, reduced), [hands, wins, drawn, melds, ponds, sideways, dora, reveal, anchor, reduced]);
+  const targets = useMemo(() => layout(model, anchor), [model, anchor]);
 
-  const tracks = useRef(new Map<TileId, Track>());
+  const tracks = useRef(new Map<string, Track>());
+  const free = useRef<number[]>(Array.from({ length: CAPACITY }, (_, i) => CAPACITY - 1 - i));
+  const handOf = useRef("");
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
-  // Retarget tiles whose destination moved.
+  // Every slot starts empty.
   useEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    for (let slot = 0; slot < CAPACITY; slot++) mesh.setMatrixAt(slot, HIDDEN);
+    mesh.instanceMatrix.needsUpdate = true;
+  }, []);
+
+  // Retarget tiles whose destination moved; give new keys a slot, free the ones that left.
+  useEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const cells = mesh.geometry.getAttribute("aCell") as THREE.InstancedBufferAttribute;
+    const glows = mesh.geometry.getAttribute("aGlow") as THREE.InstancedBufferAttribute;
+    const dims = mesh.geometry.getAttribute("aDim") as THREE.InstancedBufferAttribute;
     const now = performance.now() / 1000;
-    for (const [id, to] of targets) {
-      const track = tracks.current.get(id);
+    // A new hand (or the first state) puts everything in place without flying.
+    const settle = handOf.current !== model.key;
+    handOf.current = model.key;
+    const release = (key: string, track: Track) => {
+      mesh.setMatrixAt(track.slot, HIDDEN);
+      free.current.push(track.slot);
+      tracks.current.delete(key);
+    };
+    for (const [key, track] of tracks.current) if (!targets.has(key)) release(key, track);
+    for (const [key, to] of targets) {
+      const track = tracks.current.get(key);
       if (!track) {
-        // A new tile drops in from just above its spot.
-        const start = clone(to);
-        start.p = [to.p[0], to.p[1] + (tracks.current.size ? 5 : 0), to.p[2]];
-        tracks.current.set(id, { cur: clone(start), from: start, to, t0: now, dur: reduced || !tracks.current.size ? 0 : 0.35, arc: 0, lift: 0, glow: 0, shown: true });
+        const slot = free.current.pop();
+        if (slot === undefined) continue;
+        cells.setX(slot, to.cell);
+        glows.setX(slot, 0);
+        dims.setX(slot, 0);
+        cells.needsUpdate = glows.needsUpdate = dims.needsUpdate = true;
+        const start = settle || reduced ? clone(to) : spawnPose(to, model, anchor);
+        tracks.current.set(key, { slot, cur: clone(start), from: start, to, t0: now + (settle ? 0 : (to.delay ?? 0)), dur: settle || reduced ? 0 : 0.45, arc: settle || reduced ? 0 : 2.5, lift: 0, glow: 0, dim: 0 });
         continue;
       }
-      track.shown = true;
       if (same(track.to, to)) {
         track.to = to;
         continue;
@@ -242,158 +448,57 @@ export function Tiles({ day, backColor }: { day: boolean; backColor: string }) {
       const turn = Math.abs(to.yaw - track.cur.yaw) + Math.abs(to.pitch - track.cur.pitch);
       track.from = clone(track.cur);
       track.to = to;
-      track.t0 = now + (to.delay ?? 0);
-      track.dur = reduced ? 0 : Math.min(0.75, 0.26 + dist / 70 + turn * 0.08);
-      track.arc = reduced ? 0 : dist > 6 ? Math.min(7, 1.5 + dist * 0.18) : turn > 1 ? 1.6 : 0;
-    }
-    for (const [id, track] of tracks.current) if (!targets.has(id)) track.shown = false;
-    invalidate();
-  }, [targets, reduced, invalidate]);
-
-  useFrame(() => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
-    const glows = mesh.geometry.getAttribute("aGlow") as THREE.InstancedBufferAttribute;
-    const now = performance.now() / 1000;
-    let moving = false;
-    let glowDirty = false;
-    for (let id = 0; id < TILES; id++) {
-      const track = tracks.current.get(id);
-      if (!track || !track.shown) {
-        dummy.scale.setScalar(0);
-        dummy.position.set(0, -50, 0);
-        dummy.updateMatrix();
-        mesh.setMatrixAt(id, dummy.matrix);
-        continue;
-      }
-      const { from, to } = track;
-      const raw = track.dur <= 0 ? 1 : Math.min(1, Math.max(0, (now - track.t0) / track.dur));
-      if (raw < 1) moving = true;
-      const t = ease(raw);
-      const cur = track.cur;
-      cur.p[0] = from.p[0] + (to.p[0] - from.p[0]) * t;
-      cur.p[1] = from.p[1] + (to.p[1] - from.p[1]) * t + Math.sin(Math.PI * t) * track.arc;
-      cur.p[2] = from.p[2] + (to.p[2] - from.p[2]) * t;
-      cur.pitch = from.pitch + (to.pitch - from.pitch) * t;
-      cur.yaw = from.yaw + (to.yaw - from.yaw) * t;
-      cur.roll = from.roll + (to.roll - from.roll) * t;
-      cur.scale = from.scale + (to.scale - from.scale) * t;
-      // Hover: your tile rises a little toward you.
-      const liftTarget = to.hand && hoverTile === id ? 1 : 0;
-      const nextLift = reduced ? liftTarget : track.lift + (liftTarget - track.lift) * 0.25;
-      if (Math.abs(nextLift - track.lift) > 1e-3) moving = true;
-      track.lift = Math.abs(nextLift - liftTarget) < 1e-3 ? liftTarget : nextLift;
-      const glowTarget = (to.glow ?? 0) * (0.75 + 0.25 * Math.sin(now * 4)) + track.lift * 0.35;
-      if (Math.abs(glowTarget - track.glow) > 1e-3) {
-        track.glow = glowTarget;
-        glows.setX(id, glowTarget);
-        glowDirty = true;
-        if (to.glow) moving = true;
-      }
-      dummy.position.set(cur.p[0], cur.p[1] + track.lift * 1.1, cur.p[2] + track.lift * 0.5);
-      dummy.rotation.set(cur.pitch, cur.yaw, cur.roll, "YXZ");
-      dummy.scale.setScalar(cur.scale);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(id, dummy.matrix);
+      track.t0 = now + (settle ? 0 : (to.delay ?? 0));
+      track.dur = reduced || settle ? 0 : Math.min(0.75, 0.26 + dist / 70 + turn * 0.08);
+      track.arc = reduced || settle ? 0 : dist > 6 ? Math.min(7, 1.5 + dist * 0.18) : turn > 1 ? 1.6 : 0;
     }
     mesh.instanceMatrix.needsUpdate = true;
-    if (glowDirty) glows.needsUpdate = true;
-    mesh.computeBoundingSphere();
-    if (moving) invalidate();
-  });
+    invalidate();
+  }, [targets, model, anchor, reduced, invalidate]);
 
-  const onMove = (event: ThreeEvent<PointerEvent>) => {
-    event.stopPropagation();
-    const id = event.instanceId;
-    const target = id !== undefined ? targets.get(id) : undefined;
-    const next = target?.hand ? (id as TileId) : null;
-    if (useStage.getState().hoverTile !== next) useStage.getState().setHover(next);
-    document.body.style.cursor = next !== null ? "pointer" : "";
-  };
-  const onOut = () => {
-    if (useStage.getState().hoverTile !== null) useStage.getState().setHover(null);
-    document.body.style.cursor = "";
-  };
-  const onClick = (event: ThreeEvent<MouseEvent>) => {
-    const id = event.instanceId;
-    if (id === undefined || !targets.get(id)?.hand) return;
-    event.stopPropagation();
-    useStage.getState().discard(id);
-    document.body.style.cursor = "";
-  };
+  const corner = useMemo(() => new THREE.Vector3(), []);
+  useFrame((state) => {
+    const mesh = meshRef.current;
+    if (mesh && stepTiles(mesh, tracks.current, reduced, state.camera, state.size, dummy, corner)) invalidate();
+  });
 
   return (
     <>
-      <instancedMesh
-        ref={meshRef}
-        args={[geometry, material, TILES]}
-        castShadow
-        receiveShadow
-        frustumCulled={false}
-        onPointerMove={onMove}
-        onPointerOut={onOut}
-        onClick={onClick}
-        userData={{ day }}
-      />
+      <instancedMesh ref={meshRef} args={[geometry, material, CAPACITY]} castShadow receiveShadow frustumCulled={false} raycast={() => null} />
       <Wall material={material} />
     </>
   );
 }
 
-// ── The wall ─────────────────────────────────────────────────────────────────
-/** Stacks per side, two tiles high, as at a real table. */
-const WALL_STACKS = 17;
 /**
- * Distance of each wall's middle from the center: right up against the hand, so from your chair the
- * wall in front of you stays clear of your third row of discards.
- */
-const WALL_ROW = ROWS.hand - TILE.d / 2 - 0.5 - TILE.h / 2;
-
-/**
- * The live wall, face down in front of each hand. Decorative: it holds no tile ids, it simply has as
- * many stacks as the mock's draw pool still needs, so it shortens as the hand goes on. Stacks are taken
- * from the far side first, so the walls in front of you and to your right are the last to go.
+ * The live wall, face down in front of each hand. It holds no tile ids: it simply has as many stacks
+ * as there are tiles left to draw, so it shortens as the hand goes on. Stacks are taken from the far
+ * side first, so the walls in front of you and to your right are the last to go.
  */
 function Wall({ material }: { material: THREE.Material }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const invalidate = useThree((state) => state.invalidate);
-  const remaining = useStage((s) => Math.min(WALL_STACKS * 4, Math.ceil(s.pool.length / 2)));
+  const remaining = useStageStore((s) => s.model.wall);
   const count = WALL_STACKS * 4 * 2;
-  const geometry = useMemo(() => {
-    const box = new RoundedBoxGeometry(TILE.w, TILE.h, TILE.d, 2, 0.32);
-    // Faces point at the felt, so the cell never shows; the attributes only have to exist.
-    box.setAttribute("aCell", new THREE.InstancedBufferAttribute(new Float32Array(count), 1));
-    box.setAttribute("aGlow", new THREE.InstancedBufferAttribute(new Float32Array(count), 1));
-    return box;
-  }, [count]);
+  const geometry = useMemo(() => tileGeometry(count), [count]);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   useEffect(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
     const dummy = new THREE.Object3D();
-    // Your wall fills first, then the one to your right, across, and to your left. Each runs from
-    // its owner's left hand, which is the corner it shares with the wall filled before it.
+    const stacks = wallStacks(remaining);
     let i = 0;
-    let left = remaining;
-    for (let seat = 0; seat < 4; seat++) {
-      for (let stack = 0; stack < WALL_STACKS; stack++) {
-        const on = left > 0;
-        if (on) left -= 1;
-        const x = (stack - (WALL_STACKS - 1) / 2) * (TILE.w + 0.05);
-        for (let layer = 0; layer < 2; layer++) {
-          if (on) {
-            const [px, , pz] = seatPoint(seat, x, 0, WALL_ROW);
-            dummy.position.set(px, TILE.d / 2 + layer * (TILE.d + 0.02), pz);
-            dummy.rotation.set(-FLAT, SEAT_YAW[seat], 0, "YXZ");
-            dummy.scale.setScalar(1);
-          } else {
-            dummy.position.set(0, -50, 0);
-            dummy.scale.setScalar(0);
-          }
+    for (let stack = 0; stack < WALL_STACKS * 4; stack++) {
+      for (let layer = 0; layer < 2; layer++) {
+        if (stack < stacks) {
+          const at = wallStack(stack, layer);
+          dummy.position.set(...at.p);
+          dummy.rotation.set(at.pitch, at.yaw, 0, "YXZ");
+          dummy.scale.setScalar(1);
           dummy.updateMatrix();
           mesh.setMatrixAt(i++, dummy.matrix);
-        }
+        } else mesh.setMatrixAt(i++, HIDDEN);
       }
     }
     mesh.instanceMatrix.needsUpdate = true;

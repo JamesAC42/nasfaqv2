@@ -9,7 +9,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { ROWS, TABLE, seatPoint, SEAT_YAW } from "@/app/components/games/mahjong/stage/geometry";
-import { ROUND, SEATS, seatColor, useStage } from "@/app/components/games/mahjong/stage/mock-state";
+import { useStageStore, type StageSeat } from "@/app/components/games/mahjong/stage/model";
 import { brushedTexture, feltTexture, radialTexture } from "@/app/components/games/mahjong/stage/textures";
 
 function roundedSquare<T extends THREE.Path>(half: number, radius: number, shape: T): T {
@@ -43,6 +43,15 @@ function TableBody({ day }: { day: boolean }) {
   }, []);
   const apronGeometry = useMemo(() => new THREE.ExtrudeGeometry(roundedSquare(TABLE.rim - 0.4, 7.6, new THREE.Shape()), { depth: 7, bevelEnabled: true, bevelThickness: 0.4, bevelSize: 0.4, bevelSegments: 2, curveSegments: 16 }), []);
   useEffect(() => () => felt.dispose(), [felt]);
+  useEffect(
+    () => () => {
+      brushed.dispose();
+      feltGeometry.dispose();
+      rimGeometry.dispose();
+      apronGeometry.dispose();
+    },
+    [brushed, feltGeometry, rimGeometry, apronGeometry],
+  );
 
   return (
     <group>
@@ -62,8 +71,14 @@ function TableBody({ day }: { day: boolean }) {
 // ── Market board ─────────────────────────────────────────────────────────────
 const BOARD = 1024;
 
-function drawBoard(ctx: CanvasRenderingContext2D, opts: { day: boolean; history: number[][]; chartAt: number; points: number[]; sticks: number; font: string }) {
-  const { day, history, chartAt, points, sticks, font } = opts;
+type BoardData = { day: boolean; seats: StageSeat[]; round: { label: string; honba: number; sticks: number }; left: number; chartAt: number; font: string };
+
+const shortName = (name: string) => (name.length > 11 ? `${name.slice(0, 10)}…` : name).toUpperCase();
+
+function drawBoard(ctx: CanvasRenderingContext2D, opts: BoardData) {
+  const { day, seats, round, left, chartAt, font } = opts;
+  const history = seats.map((seat) => seat.history);
+  const sticks = round.sticks;
   ctx.clearRect(0, 0, BOARD, BOARD);
   const bg = ctx.createLinearGradient(0, 0, 0, BOARD);
   bg.addColorStop(0, day ? "#1d2740" : "#0b1426");
@@ -87,13 +102,16 @@ function drawBoard(ctx: CanvasRenderingContext2D, opts: { day: boolean; history:
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "#eef3ff";
   ctx.font = `700 64px ${font}`;
-  ctx.fillText(`${ROUND.wind.toUpperCase()} ${ROUND.hand}`, BOARD / 2 - 150, 268);
+  ctx.fillText(round.label.toUpperCase(), BOARD / 2 - 150, 268);
   ctx.font = `600 40px ${font}`;
   ctx.fillStyle = "rgba(220,230,255,0.72)";
   ctx.textAlign = "left";
-  ctx.fillText(`${ROUND.honba} HONBA`, BOARD / 2 + 10, 262);
+  ctx.fillText(`${round.honba} HONBA`, BOARD / 2 + 10, 262);
+  ctx.textAlign = "right";
+  ctx.fillText(`${left} LEFT`, BOARD - 40, 262);
+  ctx.textAlign = "left";
   // Riichi sticks on the table, drawn as little bars.
-  for (let i = 0; i < Math.max(1, sticks); i++) {
+  for (let i = 0; i < Math.min(8, Math.max(1, sticks)); i++) {
     ctx.fillStyle = i < sticks ? "#f4efe2" : "rgba(255,255,255,0.14)";
     ctx.fillRect(BOARD / 2 + 230 + i * 28, 236, 14, 34);
   }
@@ -106,7 +124,7 @@ function drawBoard(ctx: CanvasRenderingContext2D, opts: { day: boolean; history:
     const y = 304 + seat * 172;
     const w = BOARD - 72;
     const h = 150;
-    const color = seatColor(seat, false);
+    const color = seats[seat].color;
     ctx.fillStyle = "rgba(255,255,255,0.04)";
     ctx.fillRect(x, y, w, h);
     ctx.fillStyle = color;
@@ -115,15 +133,15 @@ function drawBoard(ctx: CanvasRenderingContext2D, opts: { day: boolean; history:
     ctx.fillStyle = "#05070c";
     ctx.textAlign = "center";
     ctx.font = `800 52px ${font}`;
-    ctx.fillText(SEATS[seat].wind, x + 63, y + 94);
+    ctx.fillText(seats[seat].wind, x + 63, y + 94);
     ctx.textAlign = "left";
     ctx.fillStyle = color;
     ctx.font = `700 46px ${font}`;
-    ctx.fillText(SEATS[seat].short, x + 118, y + 92);
+    ctx.fillText(shortName(seats[seat].name), x + 118, y + 92);
     ctx.textAlign = "right";
     ctx.fillStyle = "#eef3ff";
     ctx.font = `700 56px ${font}`;
-    ctx.fillText(points[seat].toLocaleString("en-US"), x + w - 22, y + 96);
+    ctx.fillText(seats[seat].points.toLocaleString("en-US"), x + w - 22, y + 96);
     // The chart.
     const cx = x + 360;
     const cw = 330;
@@ -174,10 +192,10 @@ function drawBoard(ctx: CanvasRenderingContext2D, opts: { day: boolean; history:
 }
 
 function MarketBoard({ day }: { day: boolean }) {
-  const history = useStage((s) => s.history);
-  const chartAt = useStage((s) => s.chartAt);
-  const points = useStage((s) => s.points);
-  const sticks = useStage((s) => s.sticks);
+  const seats = useStageStore((s) => s.model.seats);
+  const round = useStageStore((s) => s.model.round);
+  const left = useStageStore((s) => s.model.wall);
+  const reduced = useStageStore((s) => s.ui.reduced);
   const invalidate = useThree((s) => s.invalidate);
   const boardMaterial = useRef<THREE.MeshBasicMaterial>(null);
   const texture = useMemo(() => {
@@ -189,13 +207,24 @@ function MarketBoard({ day }: { day: boolean }) {
     t.anisotropy = 8;
     return t;
   }, []);
+  // A new point on the charts (a hand finished) draws its last stretch in over ~0.9 s.
+  const points = seats[0]?.history.length ?? 0;
+  const grow = useRef({ points, at: 0 });
+  useEffect(() => {
+    if (grow.current.points === points) return;
+    grow.current = { points, at: points > grow.current.points && !reduced ? performance.now() : 0 };
+    invalidate();
+  }, [points, reduced, invalidate]);
   // Redraw when what it shows changes (the key lives on the texture, so a fresh texture always draws).
-  const key = JSON.stringify([day, history, chartAt, points, sticks]);
+  const content = JSON.stringify([day, seats.map((seat) => [seat.name, seat.color, seat.wind, seat.points, seat.history]), round, left]);
   useFrame(() => {
     const map = boardMaterial.current?.map as THREE.CanvasTexture | null | undefined;
-    if (!map || map.userData.key === key) return;
+    if (!map) return;
+    const chartAt = grow.current.at ? Math.min(1, (performance.now() - grow.current.at) / 900) : 1;
+    const key = `${content}|${chartAt}`;
+    if (map.userData.key === key) return;
     const font = getComputedStyle(document.documentElement).getPropertyValue("--font-display").trim() || "system-ui, sans-serif";
-    drawBoard((map.image as HTMLCanvasElement).getContext("2d")!, { day, history, chartAt, points, sticks, font });
+    drawBoard((map.image as HTMLCanvasElement).getContext("2d")!, { day, seats, round, left, chartAt, font });
     map.userData.key = key;
     map.needsUpdate = true;
     invalidate();
@@ -203,6 +232,7 @@ function MarketBoard({ day }: { day: boolean }) {
   useEffect(() => () => texture.dispose(), [texture]);
 
   const plinth = useMemo(() => new RoundedBoxGeometry(TABLE.plinth * 2, TABLE.plinthHeight, TABLE.plinth * 2, 3, 0.5), []);
+  useEffect(() => () => plinth.dispose(), [plinth]);
   const s = TABLE.plinth * 2 - 0.9;
   return (
     <group>
@@ -224,7 +254,7 @@ function MarketBoard({ day }: { day: boolean }) {
         return (
           <mesh key={seat} position={[x, 0.12, z]} rotation-y={SEAT_YAW[seat]}>
             <boxGeometry args={[TABLE.plinth * 1.5, 0.22, 0.22]} />
-            <meshBasicMaterial color={seatColor(seat, day)} toneMapped={false} />
+            <meshBasicMaterial color={seats[seat]?.color ?? "#3fb8f5"} toneMapped={false} />
           </mesh>
         );
       })}
@@ -296,12 +326,14 @@ function PulseRing({ seat, at, color, reduced }: { seat: number; at: number; col
 }
 
 export function TableScene({ day }: { day: boolean }) {
-  const riichi = useStage((s) => s.riichi);
-  const moment = useStage((s) => s.moment);
-  const reduced = useStage((s) => s.reduced);
+  const riichi = useStageStore((s) => s.model.seats.map((seat) => (seat.riichi ? 1 : 0)).join(""));
+  const moment = useStageStore((s) => s.model.moment);
+  const reduced = useStageStore((s) => s.ui.reduced);
+  const momentColor = useStageStore((s) => (s.model.moment ? s.model.seats[s.model.moment.seat]?.color : null) ?? "#3fb8f5");
   // A stick drops during its riichi moment; afterwards (time 0) it simply lies there.
   const droppedAt = (seat: number) => (moment?.kind === "riichi" && moment.seat === seat ? moment.at : 0);
   const glow = useMemo(() => radialTexture(0, 1), []);
+  useEffect(() => () => glow.dispose(), [glow]);
   return (
     <group>
       <TableBody day={day} />
@@ -311,8 +343,8 @@ export function TableScene({ day }: { day: boolean }) {
         <planeGeometry args={[70, 70]} />
         <meshBasicMaterial map={glow} color={day ? "#fff4d6" : "#ffb866"} transparent opacity={day ? 0.08 : 0.13} blending={THREE.AdditiveBlending} depthWrite={false} />
       </mesh>
-      {riichi.map((on, seat) => (on ? <RiichiStick key={`stick-${seat}`} seat={seat} at={droppedAt(seat)} reduced={reduced} /> : null))}
-      {moment?.kind === "riichi" ? <PulseRing key={moment.id} seat={moment.seat} at={moment.at} color={seatColor(moment.seat, day)} reduced={reduced} /> : null}
+      {riichi.split("").map((on, seat) => (on === "1" ? <RiichiStick key={`stick-${seat}`} seat={seat} at={droppedAt(seat)} reduced={reduced} /> : null))}
+      {moment?.kind === "riichi" ? <PulseRing key={moment.id} seat={moment.seat} at={moment.at} color={momentColor} reduced={reduced} /> : null}
     </group>
   );
 }

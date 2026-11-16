@@ -53,3 +53,8 @@ export const useHelpOn = () => useFlag("nasfaq.mahjong.help", true);
 export const useSingleTap = () => useFlag("nasfaq.mahjong.single-tap", false);
 /** Floating reactions and the bar that sends them. */
 export const useReactionsOn = () => useFlag("nasfaq.mahjong.reactions", true);
+/**
+ * The 3D table (on) or the classic flat board (off). `byDefault` is the choice before the player has
+ * made one: the page passes whether 3D is the default on this device.
+ */
+export const useTable3d = (byDefault: boolean) => useFlag("nasfaq.mahjong.table-3d", byDefault);

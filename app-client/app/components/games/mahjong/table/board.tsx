@@ -312,7 +312,7 @@ export function Board({ table, game, hand, bottom, me, seatStyles, poses, callou
 }
 
 // ── Callouts: Pon, Chi, Kan, Riichi, Ron, Tsumo, big and brief, at the seat that did it ───────────
-function CalloutLayer({ callouts, bottom }: { callouts: Callout[]; bottom: SeatIndex }) {
+export function CalloutLayer({ callouts, bottom }: { callouts: Callout[]; bottom: SeatIndex }) {
   const sides = seatsBySide(bottom);
   const sideOf = (seat: SeatIndex) => SIDES.find((side) => sides[side] === seat) ?? "bottom";
   return (

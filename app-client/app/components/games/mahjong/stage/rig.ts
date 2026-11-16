@@ -3,7 +3,7 @@
 // and your own hand then floats up toward the lens so it stays big enough to read (handAnchor).
 
 import * as THREE from "three";
-import { HAND_LEAN, ROWS, TILE, type Vec3 } from "@/app/components/games/mahjong/stage/geometry";
+import { HAND_LEAN, ROWS, TABLE, TILE, type Vec3 } from "@/app/components/games/mahjong/stage/geometry";
 
 export type CameraPose = { position: Vec3; target: Vec3; fov: number };
 
@@ -58,4 +58,27 @@ export function handAnchor(aspect: number, widthPx: number): HandAnchor {
   const center = cam.clone().addScaledVector(forward, fit).addScaledVector(up, ndcY * tanV * fit);
   const pitch = -Math.asin(Math.min(1, Math.max(-1, -forward.y)));
   return { center: center.toArray() as Vec3, pitch, spacing: TILE.w * 1.03, scale: 1, floating: true };
+}
+
+/**
+ * How high a point behind the table can be and still be hidden by the rim from the resting camera:
+ * on the sightline from the lens over the rim's outer top edge, where that line leaves the table on
+ * its way to the point. A portrait's crop line goes a little under it, so the cut never shows.
+ */
+export function hiddenBelow(aspect: number, x: number, z: number): number {
+  const [cx, cy, cz] = basePose(aspect).position;
+  const dx = x - cx;
+  const dz = z - cz;
+  // Where the segment from the lens to the point leaves the rim's outer square (slab method).
+  let exit = Infinity;
+  for (const [from, d] of [
+    [cx, dx],
+    [cz, dz],
+  ]) {
+    if (Math.abs(d) < 1e-6) continue;
+    const t = Math.max((TABLE.rim - from) / d, (-TABLE.rim - from) / d);
+    exit = Math.min(exit, t);
+  }
+  if (!Number.isFinite(exit) || exit <= 0 || exit >= 1) return -2;
+  return cy + (TABLE.lip - cy) / exit;
 }
