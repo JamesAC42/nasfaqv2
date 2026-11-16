@@ -7,18 +7,21 @@ import { browserPushEnvironment, keyBytes, pushSupport, type PushSupport } from 
 import { timeAgo } from "@/app/lib/time";
 import styles from "@/app/components/settings/settings.module.scss";
 
-// The Notifications section of /settings (api/src/routes/settings.js). Reminders are listed one row
-// each, with a switch per channel: push now, room for email later (a new key in `preferences` and a
-// new column here). Everything starts off.
+// The Notifications section of /settings (api/src/routes/settings.js). The check-in reminder and each
+// group of bell notifications (Market, Bets, Social, Exchange: api/src/services/notifications.js
+// KIND_GROUPS) get a row, with a switch per channel: push now, room for email later (a new key in
+// `preferences` and a new column here). Everything starts off.
 //
-// Push works per browser: turning the reminder on in one asks that browser for permission, registers
+// Push works per browser: turning any row on in one asks that browser for permission, registers
 // public/sw.js (push only, no caching) and saves its subscription. The service worker is registered
 // only here, only when the player turns push on, and unregistered again when they turn it off in
 // that browser. iPhone and iPad first need the site on the Home Screen (lib/push-support.mjs).
 
 type Device = { id: number; label: string; created_at: string; last_success_at: string | null };
+type Preferences = { checkin_reminder_push: boolean; push_market?: boolean; push_bets?: boolean; push_social?: boolean; push_exchange?: boolean };
+type PreferenceKey = keyof Preferences;
 type Settings = {
-  preferences: { checkin_reminder_push: boolean };
+  preferences: Preferences;
   push: { available: boolean; public_key: string | null };
   devices: Device[];
   /** The New York hour the check-in reminder goes out (api CHECKIN_REMINDER_HOUR). */
@@ -28,6 +31,18 @@ type Settings = {
 
 /** 18 → "6 PM", 0 → "12 AM". */
 const hourText = (hour: number) => `${hour % 12 || 12} ${hour < 12 ? "AM" : "PM"}`;
+
+/** The bell's groups, one row each under the check-in reminder. */
+const GROUPS: { key: PreferenceKey; name: string; line: string }[] = [
+  { key: "push_market", name: "Market", line: "Dividend payouts, buybacks, IPOs and achievements." },
+  { key: "push_bets", name: "Bets", line: "When a bet you’re in wins, loses or is voided." },
+  { key: "push_social", name: "Social", line: "Mentions, replies, friends, referrals and your picked articles." },
+  { key: "push_exchange", name: "Exchange", line: "Sales, bids, trade offers and your wishlist." },
+];
+/** What the page offers once a player first turns push on. Nothing turns on until they say so. */
+const SUGGESTED: PreferenceKey[] = ["push_market", "push_social"];
+
+const anyOn = (preferences: Preferences) => Object.values(preferences).some(Boolean);
 
 const SW_PATH = "/sw.js";
 const DEVICE_KEY = "nasfaq.pushDevice";
@@ -84,7 +99,7 @@ function HomeScreenSteps() {
         </li>
         <li>Open NASFAQ from the new icon on your Home Screen. Sign in again if it asks: it can keep its own sign-in, apart from Safari.</li>
         <li>
-          Go to <b>Settings</b> (<b>Me</b>, then <b>Settings</b>, or <b>More</b>, then <b>Settings</b>) and turn the reminder on.
+          Go to <b>Settings</b> (<b>Me</b>, then <b>Settings</b>, or <b>More</b>, then <b>Settings</b>) and turn on what you want.
         </li>
       </ol>
     </div>
@@ -107,6 +122,7 @@ export function NotificationSettings() {
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suggest, setSuggest] = useState(false);
 
   const loaded = useCallback(async (settings: Settings) => {
     setData(settings);
@@ -117,7 +133,7 @@ export function NotificationSettings() {
     if (supported !== "supported" || !settings.push.available) return;
     const subscription = await currentSubscription().catch(() => null);
     setSubscribedHere(Boolean(subscription));
-    if (subscription && settings.preferences.checkin_reminder_push) {
+    if (subscription && anyOn(settings.preferences)) {
       // Saved again so the site has it (a push service can drop one), and so it's this player's.
       const synced = await saveDevice(subscription).catch(() => null);
       if (synced) {
@@ -177,13 +193,21 @@ export function NotificationSettings() {
     setSubscribedHere(false);
   };
 
-  const togglePush = (on: boolean) =>
+  const togglePush = (key: PreferenceKey, on: boolean) =>
     run(async () => {
       if (!data) return;
+      const first = on && !anyOn(data.preferences);
       // Always save this browser when turning it on: it may be subscribed already but saved for
       // another account, or removed from another device's list. subscribeHere reuses the subscription.
       if (on) await subscribeHere(data);
-      setData(await save({ preferences: { checkin_reminder_push: on } }));
+      setData(await save({ preferences: { [key]: on } }));
+      setSuggest(first);
+    });
+
+  const turnOn = (keys: PreferenceKey[]) =>
+    run(async () => {
+      setData(await save({ preferences: Object.fromEntries(keys.map((key) => [key, true])) }));
+      setSuggest(false);
     });
 
   const removeDevice = (device: Device) =>
@@ -201,19 +225,31 @@ export function NotificationSettings() {
     );
   }
 
-  const pushOn = data.preferences.checkin_reminder_push;
+  const pushOn = anyOn(data.preferences);
   const canToggle = data.push.available && support === "supported";
+  const suggested = suggest ? SUGGESTED.filter((key) => !data.preferences[key]) : [];
+  const suggestedNames = suggested.map((key) => GROUPS.find((group) => group.key === key)?.name ?? key).join(" and ");
+
+  const pushSwitch = (key: PreferenceKey, label: string) =>
+    canToggle ? (
+      <label className={styles.switch}>
+        <input type="checkbox" aria-label={`${label} push`} checked={Boolean(data.preferences[key])} disabled={busy} onChange={(event) => void togglePush(key, event.target.checked)} />
+        <span>{data.preferences[key] ? "On" : "Off"}</span>
+      </label>
+    ) : (
+      <span className={styles.dim}>{data.push.available ? "Not here" : "Unavailable"}</span>
+    );
 
   return (
     <section className={styles.section} id="notifications" aria-labelledby="notifications-title">
       <h2 id="notifications-title">Notifications</h2>
       <p className={styles.note}>
-        Reminders from the site, off until you turn them on. The bell, chat popups and muted players are on <Link href="/notifications#chat">Notifications</Link>.
+        Pushes to your phone or browser, off until you turn them on. The bell, chat popups and muted players are on <Link href="/notifications#chat">Notifications</Link>.
       </p>
 
-      <div className={styles.table} role="table" aria-label="Reminders">
+      <div className={styles.table} role="table" aria-label="Push notifications">
         <div className={styles.tableHead} role="row">
-          <span role="columnheader">Reminder</span>
+          <span role="columnheader">Notification</span>
           <span role="columnheader">Push</span>
           {/* Email goes here as its own column once it exists. */}
         </div>
@@ -222,26 +258,37 @@ export function NotificationSettings() {
             <b>Daily check-in</b>
             <small>Once a day at {hourText(data.schedule?.checkin_reminder_hour ?? 18)} ET, if you haven’t checked in yet. The check-in resets at midnight ET.</small>
           </span>
-          <span role="cell">
-            {canToggle ? (
-              <label className={styles.switch}>
-                <input type="checkbox" checked={pushOn} disabled={busy} onChange={(event) => void togglePush(event.target.checked)} />
-                <span>{pushOn ? "On" : "Off"}</span>
-              </label>
-            ) : (
-              <span className={styles.dim}>{data.push.available ? "Not here" : "Unavailable"}</span>
-            )}
-          </span>
+          <span role="cell">{pushSwitch("checkin_reminder_push", "Daily check-in")}</span>
         </div>
+        {GROUPS.map((group) => (
+          <div key={group.key} className={styles.tableRow} role="row">
+            <span role="cell">
+              <b>{group.name}</b>
+              <small>{group.line}</small>
+            </span>
+            <span role="cell">{pushSwitch(group.key, group.name)}</span>
+          </div>
+        ))}
       </div>
+      {canToggle && suggested.length ? (
+        <p className={styles.note}>
+          Want {suggestedNames} too?{" "}
+          <button type="button" className={styles.linkButton} disabled={busy} onClick={() => void turnOn(suggested)}>
+            Turn {suggested.length > 1 ? "them" : "it"} on
+          </button>{" "}
+          <button type="button" className={styles.linkButton} disabled={busy} onClick={() => setSuggest(false)}>
+            No thanks
+          </button>
+        </p>
+      ) : null}
 
       {!data.push.available ? <p className={styles.note}>Push notifications aren’t set up on the site yet.</p> : support ? <SupportNote support={support} /> : null}
       {canToggle && permission === "denied" ? (
-        <p className={styles.note}>Notifications are blocked for this site in your browser. Allow them in its site settings to get reminders here.</p>
+        <p className={styles.note}>Notifications are blocked for this site in your browser. Allow them in its site settings to get them here.</p>
       ) : null}
       {canToggle && pushOn && !subscribedHere ? (
         <p className={styles.note}>
-          Reminders go to the devices below.{" "}
+          Pushes go to the devices below.{" "}
           <button type="button" className={styles.linkButton} disabled={busy} onClick={() => void run(() => subscribeHere(data))}>
             Send them to this browser too
           </button>
@@ -259,7 +306,7 @@ export function NotificationSettings() {
                 {device.id === here && subscribedHere ? <em> · this browser</em> : null}
                 <small>
                   added {timeAgo(device.created_at)}
-                  {device.last_success_at ? ` · last reminder ${timeAgo(device.last_success_at)}` : ""}
+                  {device.last_success_at ? ` · last push ${timeAgo(device.last_success_at)}` : ""}
                 </small>
               </span>
               <button type="button" className={styles.button} disabled={busy} onClick={() => void removeDevice(device)}>
