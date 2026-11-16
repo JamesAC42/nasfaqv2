@@ -109,7 +109,7 @@ export function MarketSection() {
         <>
           <p>
             Every listed hololive talent has a ticker. The price is whatever players pay for it, but underneath there&apos;s a <b>fair value</b>{" "}built from their real
-            YouTube channel. Big streams count too: a 3D live, a new outfit or an original song lifts fair value for a day. Prices wander on hype, and four
+            YouTube channel. Big streams count too: a 3D live, a new outfit or an original song lifts fair value, most of it that day, fading over the next few. Prices wander on hype, and four
             times a day they get dragged back toward what the numbers say.
           </p>
           <p>You win by owning the right talents before everyone else figures it out.</p>
@@ -129,17 +129,17 @@ export function MarketSection() {
           {
             k: "hidden",
             title: "Fair value",
-            body: "Repriced every morning from subscribers, recent views against their usual, sub growth and upload streaks. Quiet channels get marked down. It moves 25% a day at most, and you never see the exact number.",
+            body: "Repriced every morning from subscribers, recent views against their usual, sub growth and upload streaks. Quiet channels get marked down. It moves 25% a day at most. Today's number stays hidden until the day's last tick has landed; then the daily report shows it.",
           },
           {
             k: "live",
             title: "Price",
-            body: "Every buy pushes the price up and every sell pushes it down, and the push stays put. The four daily ticks pull the price back toward its target, about half the gap each on average, and a little of the push carries into the next days.",
+            body: "Every buy pushes the price up and every sell pushes it down, and the push stays put. The four daily ticks pull the price back toward its target, about half the gap each on average. Settlement doesn't reset anything: each day opens where the last one closed, push and all.",
           },
           {
             k: "supply",
             title: "Shares can sell out",
-            body: "Each talent has max shares, reset every Saturday from their subscriber count. Buying takes shares from the broker, selling gives them back. When nothing's left for sale, buys wait for a seller.",
+            body: "Each talent has max shares, reset every Saturday from their subscriber count. Buying takes shares from the broker, selling gives them back. When nothing's left for sale, buys are turned down until someone sells or Saturday's review raises the max.",
           },
           {
             k: "score",
@@ -316,7 +316,7 @@ export function WeeklySection() {
             title: "Too many shares",
             body: "If max shares drop below what players hold, the stock freezes: no buys, no ticks. The broker buys at 120% of the frozen price, 10 points less each day.",
           },
-          { k: "forced", title: "Or else", body: "Whatever's still over at the next Saturday, the broker takes from every holder in proportion, at the base rate." },
+          { k: "forced", title: "Or else", body: "Whatever's still over at the next Saturday, the broker takes from every holder in proportion, at the last revealed fair value." },
           { k: "the review", title: "Dividend Review", body: "Every payout, fee, max-share change and buyback, stock by stock, plus your own week, on the Market page." },
         ]}
       />

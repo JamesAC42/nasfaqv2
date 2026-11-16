@@ -41,6 +41,7 @@ const pgNumeric = require("./pgNumeric");
 const notifications = require("./notifications");
 const marketState = require("./marketState");
 const trading = require("./trading");
+const netWorth = require("./netWorth");
 const { acquireSchedulerLock, releaseSchedulerLock } = require("./marketScheduler");
 const { getStarterCash, getStarterCredit } = require("./portfolioCash");
 const { publishMarketEvent, publishMarketStatusEvent } = require("./marketEvents");
@@ -789,6 +790,8 @@ async function evaluate(pool, { evalDate, dryRun, onDemand, redis, logger }) {
   const finishedAt = Date.now();
 
   if (!dryRun) {
+    // Dividends, fees, the Credit conversion, forced buybacks and bailouts moved nearly every wallet.
+    netWorth.queueLeaderboardRefresh(pool, null, { everyone: true });
     notifications.publish(toPublish);
     await notifications.pruneInboxes(pool, toPublish.map((row) => row.user_id)).catch(() => {});
     await invalidateMarketAssetsCache(redis).catch(() => {});

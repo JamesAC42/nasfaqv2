@@ -258,6 +258,8 @@ app.use(
 );
 
 const pool = createPool(cfg.databaseUrl);
+// Credit moves (games, predictions) queue leaderboard refreshes from inside their transactions.
+require("./services/netWorth").useLeaderboardRefreshPool(pool);
 // The readiness probe's own connection, so a busy pool doesn't read as a broken pod. Its limits stay
 // inside the probe's 5 s timeout.
 const healthPool = createPool(cfg.databaseUrl, { max: 1, connectionTimeoutMs: 3_000, statementTimeoutMs: 2_000 });

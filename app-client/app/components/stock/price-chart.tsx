@@ -41,7 +41,7 @@ export function PriceChart({
   range: ChartRange;
   overlays: Overlays;
   ticks: MarketAdjustmentOutcome[];
-  /** Today's settlement mark, drawn flat on intraday ranges. */
+  /** The newest revealed target (usually yesterday's fair value), drawn flat on intraday ranges. */
   latestMark: number | null;
   avgCost: number | null;
   livePrice: number | null;
@@ -174,7 +174,7 @@ export function PriceChart({
             <g>
               <line x1={0} x2={plotW} y1={model.y(latestMark)} y2={model.y(latestMark)} className={styles.mark} />
               <text x={plotW - 4} y={model.y(latestMark) - 4} className={styles.markLbl} textAnchor="end">
-                MARK
+                LAST TARGET
               </text>
             </g>
           ) : null}

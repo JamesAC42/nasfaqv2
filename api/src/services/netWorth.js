@@ -629,17 +629,36 @@ async function refreshCurrentLeaderboardForAsset(pool, assetId, options = {}) {
   }
 }
 
-// After trades: refresh the leaderboard for everyone holding the traded stocks, coalesced. Fills
-// queue here and one refresh runs every QUEUE_DELAY_MS (2s) for all of them together, so a burst of trades
-// in a popular stock recomputes its holders once instead of once per fill (and one at a time).
+// After anything that moves net worth outside settlement: refresh the leaderboard (and oshiboards) for
+// the players it touched, coalesced. Fills, ticks, the IPO listing, the weekly evaluation and Credit
+// moves (games, predictions: economy.js) queue here, and one refresh runs every QUEUE_DELAY_MS (2s) for
+// all of them together, so a burst of trades or a tick across every stock recomputes each player once.
 const QUEUE_DELAY_MS = 2000;
-const refreshQueue = { assets: new Set(), users: new Set(), timer: null, running: false, pool: null };
+const refreshQueue = { assets: new Set(), users: new Set(), everyone: false, timer: null, running: false, pool: null };
 
-function queueLeaderboardRefresh(pool, assetId, { extraUserIds = [] } = {}) {
-  refreshQueue.pool = pool;
-  if (toInt(assetId, 0) > 0) refreshQueue.assets.add(toInt(assetId, 0));
+/**
+ * Queues a refresh for the holders of `assetIds` (one stock or a list), `extraUserIds`, or `everyone`.
+ * Call it after the change has committed. Without a pool it uses the server's (useLeaderboardRefreshPool),
+ * or the last one given: a Credit move deep inside a transaction has none. With neither, it does nothing.
+ */
+function queueLeaderboardRefresh(pool, assetIds, { extraUserIds = [], everyone = false } = {}) {
+  if (pool) refreshQueue.pool = pool;
+  if (!refreshQueue.pool) return;
+  for (const value of [].concat(assetIds ?? [])) if (toInt(value, 0) > 0) refreshQueue.assets.add(toInt(value, 0));
   for (const value of extraUserIds) if (toInt(value, 0) > 0) refreshQueue.users.add(toInt(value, 0));
+  if (everyone) refreshQueue.everyone = true;
+  if (!refreshQueue.assets.size && !refreshQueue.users.size && !refreshQueue.everyone) return;
   scheduleQueuedRefresh();
+}
+
+/** Resolves once no refresh is queued or running (tests, before reading the board or closing a pool). */
+async function leaderboardRefreshIdle() {
+  while (refreshQueue.timer || refreshQueue.running) await new Promise((resolve) => setTimeout(resolve, 50));
+}
+
+/** The pool queued refreshes run on when the caller has none to give (server.js, at startup). */
+function useLeaderboardRefreshPool(pool) {
+  refreshQueue.pool = pool;
 }
 
 function scheduleQueuedRefresh() {
@@ -650,11 +669,13 @@ function scheduleQueuedRefresh() {
 
 async function flushQueuedRefresh() {
   refreshQueue.timer = null;
-  if (!refreshQueue.assets.size && !refreshQueue.users.size) return;
+  if (!refreshQueue.assets.size && !refreshQueue.users.size && !refreshQueue.everyone) return;
   const assetIds = [...refreshQueue.assets];
   const extra = [...refreshQueue.users];
+  const everyone = refreshQueue.everyone;
   refreshQueue.assets.clear();
   refreshQueue.users.clear();
+  refreshQueue.everyone = false;
   refreshQueue.running = true;
   const client = await refreshQueue.pool.connect().catch((error) => {
     console.error("post-trade leaderboard refresh failed:", String(error?.message || error));
@@ -663,10 +684,13 @@ async function flushQueuedRefresh() {
   try {
     if (!client) return;
     await client.query("BEGIN");
-    const { rows } = await client.query(`SELECT DISTINCT user_id FROM market.portfolio_holdings WHERE asset_id = ANY($1::bigint[]) AND quantity > 0`, [assetIds]);
+    const { rows } = everyone
+      ? await client.query(`SELECT id AS user_id FROM market.users`)
+      : await client.query(`SELECT DISTINCT user_id FROM market.portfolio_holdings WHERE asset_id = ANY($1::bigint[]) AND quantity > 0`, [assetIds]);
     const userIds = [...new Set([...rows.map((row) => toInt(row.user_id, 0)), ...extra])].filter((value) => value > 0).sort((a, b) => a - b);
     if (userIds.length) {
-      await refreshCurrentLeaderboardWithClient(client, { userIds });
+      // Everyone: the whole board in one pass, as settlement does it.
+      await refreshCurrentLeaderboardWithClient(client, everyone ? {} : { userIds });
       await refreshCurrentOshiboardsForUsersWithClient(client, userIds);
     }
     await client.query("COMMIT");
@@ -676,7 +700,7 @@ async function flushQueuedRefresh() {
   } finally {
     client?.release();
     refreshQueue.running = false;
-    if (refreshQueue.assets.size || refreshQueue.users.size) scheduleQueuedRefresh();
+    if (refreshQueue.assets.size || refreshQueue.users.size || refreshQueue.everyone) scheduleQueuedRefresh();
   }
 }
 
@@ -1428,7 +1452,9 @@ module.exports = {
   recordDailyNetWorthSnapshot,
   refreshCurrentLeaderboard,
   refreshCurrentLeaderboardForAsset,
+  leaderboardRefreshIdle,
   queueLeaderboardRefresh,
+  useLeaderboardRefreshPool,
   refreshCurrentLeaderboardForAssetWithClient,
   refreshCurrentLeaderboardWithClient,
   refreshCurrentOshiboards,

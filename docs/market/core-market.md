@@ -8,17 +8,50 @@ gambits are later phases.
 ## Every day
 
 **Base rate (fair value).** Settled at 09:00 ET from the channel's YouTube numbers (subscribers, view
-and sub growth, uploads, big streams), ranked against every other listed channel. Trading never moves
-it. It is secret until that day's four ticks have landed; after that the settlement report shows it.
-The per-share base rate no longer depends on the stock's share count (it is priced against a fixed
-reference supply of 10,000), so a weekly share change never reprices a stock by itself.
+and sub growth, uploads, big streams). Trading never moves it. It is secret until that day's four
+ticks have landed; after that the settlement report shows it, and so does that day's settlement mark
+(`mid_close_mark`, which equals the day's base rate: see below).
+
+*Differs from BBB:* BBB ranks each channel against every other listed channel. The code doesn't. Each
+channel's base rate comes from its own numbers alone (`fundamentals.js` `computeDerivedSnapshot`):
+- a size anchor from subscribers and 30-day views,
+- times a momentum multiplier from view and sub growth, uploads, stagnation and big streams,
+- blended 40/60 with the day before and capped at ±25% a day (debuts excepted),
+- priced against a fixed reference supply of 10,000 shares, so a weekly share change never reprices a
+  stock by itself.
+
+Only dividends and fees, and max shares, are ranked across the market (below).
+
+**Settlement mark.** Settlement writes each day's `mid_close_mark` as the base rate times
+exp(persistent offset). Every day opens at the previous close and the offset it carries forward is
+0.9 × ln(mark ÷ base rate) of the day before, which starts at 0, so the mark is the day's base rate.
+`MARKET_PERSISTENT_DAILY_DECAY` multiplies that zero and `MARKET_TRANSIENT_SETTLEMENT_DECAY` applies
+only to a day with no price to carry, which never happens, so neither changes anything. Charts draw the mark
+as the revealed target; price lines and changes use closing prices.
 
 **Four ticks.** Open 09:00, Lunch 15:00, Late 21:00, Overnight 03:00 ET. Each stock draws four random
 strengths that add up to 200%; each tick moves the price that share of the way to the base rate
 (over 100% overshoots). Per-stock min/max strengths are editable in the admin tuning page.
 
-**Trading.** Orders queue and fill in 10-minute batches, up to 180 shares per player per tick window.
-Buys and sells move the live price; the ticks pull it back. Prices and fills stay live and public
+**Trading.** Orders queue and fill in 10-minute batches. Buys and sells move the live price; the ticks
+pull it back. Orders are for whole shares (a sale may also be everything a player has left, fraction
+and all).
+
+**The 180-share limit** (`MARKET_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL`, default 180):
+- It counts per player, across every stock and both sides together.
+- It counts per *tick window*: from one tick to the next (Open → Lunch → Late → Overnight → Open), so
+  four windows of about six hours a day. The window comes from the day's tick schedule, or from the
+  New York clock (09:00, 15:00, 21:00, 03:00) when settlement hasn't advanced the market day.
+- An order counts in the window it was *submitted* in, at its requested size, while it's queued or
+  filled. A cancelled or turned-down order gives its shares back. A partial fill still counts what it
+  asked for.
+- The ticket shows what's left (`GET /api/portfolio/me/orders` → `allowance`), and the count resets
+  at the next tick.
+- *Differs from BBB:* BBB allows 180 shares per 10-minute execution tick. The code allows 180 per
+  six-hour tick window.
+- One consequence: an order submitted just before a tick counts in the old window but fills in the
+  batch at the tick, so a player can queue 180 shares just before a tick and another 180 just after it.
+ Prices and fills stay live and public
 (BBB suggested hiding orders until the next tick window; we keep them live because the live floor
 is most of the fun).
 
@@ -45,7 +78,8 @@ When a weekly evaluation sets max shares below what players hold:
 3. If players sell enough to get back under max shares, the buyback ends at the next Open and the
    stock trades normally again.
 4. Otherwise, at the next weekly evaluation the broker **forces** the rest: it buys the excess back
-   from every holder in proportion to what they hold, at the base rate. Ownership shares stay the same.
+   from every holder in proportion to what they hold, at the last revealed base rate. Ownership shares
+   stay the same.
 
 Max shares can move again at that evaluation, so a buyback can leave a bigger gap than expected
 (BBB calls this an intended market risk).

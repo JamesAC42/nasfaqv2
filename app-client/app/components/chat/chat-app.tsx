@@ -18,7 +18,7 @@ import { RoomRail } from "@/app/components/chat/room-rail";
 import { apiFetch } from "@/app/lib/api";
 import { buildRooms, GLOBAL_ROOM, messagePreview, postingBlockedReason, roomTag, type Room } from "@/app/lib/chat-rooms";
 import { holdChatSocket, onChatSocketEvent, retainChatRooms, useChatSocketStatus } from "@/app/lib/chat-socket";
-import { markSeries, unitName } from "@/app/lib/market-units";
+import { closeSeries, unitName } from "@/app/lib/market-units";
 import { normalizeChatChannel, normalizeChatMessage } from "@/app/lib/normalizers";
 import { money, signedPct, timeAgo, toneOf } from "@/app/lib/time";
 import type { AuthUser, ChatChannel, ChatMessage, MarketAsset } from "@/app/lib/types";
@@ -664,7 +664,7 @@ function RoomHeader({ room, socket, count, unreadElsewhere, onOpenRooms, onOpenR
       {asset ? (
         <div className={styles.headStock}>
           <Link href={`/stocks/${encodeURIComponent(asset.symbol)}`} className={styles.headPx} data-peek-stock={asset.symbol}>
-            <Sparkline values={markSeries(asset)} tone={toneOf(asset.move_24h_pct) === "down" ? "down" : "up"} width={72} height={24} />
+            <Sparkline values={closeSeries(asset)} tone={toneOf(asset.move_24h_pct) === "down" ? "down" : "up"} width={72} height={24} />
             <span>
               <b>{asset.current_mid_price?.toFixed(2)}</b>
               <small className={styles[toneOf(asset.move_24h_pct)]}>{signedPct(asset.move_24h_pct)}</small>

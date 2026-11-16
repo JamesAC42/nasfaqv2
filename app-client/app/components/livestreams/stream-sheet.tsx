@@ -7,7 +7,7 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { apiFetch } from "@/app/lib/api";
-import { markSeries, unitLabel } from "@/app/lib/market-units";
+import { closeSeries, unitLabel } from "@/app/lib/market-units";
 import { normalizeCandles, normalizeLivestreams } from "@/app/lib/normalizers";
 import {
   assetForStream,
@@ -396,7 +396,7 @@ function StockStrip({ asset, onTrade, onNavigate }: { asset: MarketAsset; onTrad
         <span>{asset.current_mid_price?.toFixed(2) ?? "—"}</span>
         <span className={styles[toneOf(asset.move_24h_pct)]}>{signedPct(asset.move_24h_pct)} today</span>
       </Link>
-      <Sparkline values={markSeries(asset)} tone={toneOf(asset.move_24h_pct) === "down" ? "down" : "up"} width={120} height={28} className={styles.stockSpark} />
+      <Sparkline values={closeSeries(asset)} tone={toneOf(asset.move_24h_pct) === "down" ? "down" : "up"} width={120} height={28} className={styles.stockSpark} />
       <button type="button" className={styles.trade} onClick={onTrade}>
         TRADE {asset.symbol}
       </button>

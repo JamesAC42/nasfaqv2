@@ -11,8 +11,8 @@
 //   still landing its fair values are withheld too (targets_revealed: false, targets_reveal_at).
 // - revealedTargets(pool): the fair value movers from the newest report whose ticks have all landed.
 // - market.marks_revealed(date) (SQL, below): the same rule for queries. A day's settlement mark
-//   (mid_close_mark) is its fair value times a slowly fading offset, so it gives the target away
-//   exactly; every query that returns marks leaves out the ones whose day hasn't finished.
+//   (mid_close_mark) is its fair value (the offset it carries is always 0), so it gives the target
+//   away exactly; every query that returns marks leaves out the ones whose day hasn't finished.
 
 const schema = `
   CREATE OR REPLACE FUNCTION market.marks_revealed(d date) RETURNS boolean

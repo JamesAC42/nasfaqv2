@@ -8,7 +8,7 @@ import { TickReasons } from "@/app/components/market/tick-reason";
 import { Oshimark } from "@/app/components/common/oshimark";
 import { Sparkline } from "@/app/components/common/sparkline";
 import { SiteShell } from "@/app/components/layout/site-shell";
-import { markSeries, groupByUnit, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
+import { closeSeries, groupByUnit, UNIT_ORDER, unitLabel, unitName } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
 import { signedPct, toneOf } from "@/app/lib/time";
 import type { MarketAsset } from "@/app/lib/types";
@@ -170,7 +170,7 @@ function ChangeBar({ value }: { value: number | null }) {
 }
 
 function Spark15({ asset, width = 96, height = 24 }: { asset: MarketAsset; width?: number; height?: number }) {
-  const series = markSeries(asset);
+  const series = closeSeries(asset);
   const up = series.length > 1 ? series[series.length - 1] >= series[0] : true;
   return <Sparkline values={series} tone={up ? "up" : "down"} width={width} height={height} fill />;
 }
@@ -183,7 +183,7 @@ function Compare({ symbols, rows, onRemove, onClear }: { symbols: string[]; rows
     .map((symbol) => {
       const row = rows.get(symbol);
       if (!row) return null;
-      const values = markSeries(row.asset);
+      const values = closeSeries(row.asset);
       return values.length > 1 ? { symbol, row, color: talentAccent(row.asset.color, theme), values: values.map((value) => (value / values[0]) * 100) } : null;
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
@@ -331,7 +331,7 @@ export function Screener({ initialView }: { initialView?: string }) {
       const sym = asset.symbol.toUpperCase();
       const held = holdings.get(sym);
       const price = asset.current_mid_price ?? 0;
-      const series = markSeries(asset);
+      const series = closeSeries(asset);
       const start = series.length > 1 ? series[0] : null;
       const before = asset.latest_adjustment?.price_before;
       const after = asset.latest_adjustment?.price_after;

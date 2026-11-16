@@ -39,7 +39,7 @@ const LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL = Math.max(
   1,
   Number(
     process.env.MARKET_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL ||
-    process.env.MARKET_LIVE_ORDER_LIMIT_PER_INTERVAL ||
+    // The name env.example used until May 2026: an older environment may still set it.
     process.env.MARKET_LIVE_ORDER_SHARE_LIMIT_PER_TICK ||
       DEFAULT_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL
   )
