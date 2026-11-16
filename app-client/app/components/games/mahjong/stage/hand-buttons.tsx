@@ -10,7 +10,7 @@ import { useEffect, useMemo, type CSSProperties } from "react";
 import { useHandPress, type MyHandProps } from "@/app/components/games/mahjong/table/my-hand";
 import { handKey, registerOverlay } from "@/app/components/games/mahjong/stage/overlay";
 import { useStageStore } from "@/app/components/games/mahjong/stage/model";
-import { edgeOf, marksOf, marksSpoken, TileMarks } from "@/app/components/games/mahjong/table/hand-marks";
+import { atOf, marksOf, marksSpoken, TileMarks } from "@/app/components/games/mahjong/table/hand-marks";
 import { tileName, type TileId } from "@/app/lib/games/mahjong/tiles";
 import styles from "@/app/components/games/mahjong/stage/stage.module.scss";
 
@@ -51,7 +51,7 @@ export function HandButtons({ tiles, drawn, allowed, turn, selected, onSelect, o
         onFocus={() => setUi({ hover: id })}
         onBlur={() => setUi({ hover: null })}
       >
-        <TileMarks kinds={kinds} edge={edgeOf(index, all.length)} />
+        <TileMarks kinds={kinds} at={atOf(index, all.length)} />
       </button>
     );
   };

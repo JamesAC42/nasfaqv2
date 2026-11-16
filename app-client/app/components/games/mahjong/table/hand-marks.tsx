@@ -5,7 +5,7 @@
 // drawn inline, the label that shows over a tile when you point at it, focus it or lift it, and a
 // one-line legend the first time each kind of mark turns up (until you dismiss it).
 
-import { useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore, type CSSProperties } from "react";
 import type { TileMark } from "@/app/components/games/mahjong/table/my-hand";
 import type { TileId } from "@/app/lib/games/mahjong/tiles";
 import styles from "@/app/components/games/mahjong/table/hand-marks.module.scss";
@@ -64,16 +64,18 @@ export function MarkGlyph({ kind, className }: { kind: MarkKind; className?: str
 /**
  * The marks drawn on one tile, plus the label over it. The tile (button or slot) carries
  * `data-mark-host`; the label shows while it is pointed at, focused from the keyboard, or lifted (the
- * first tap on a phone), and takes no clicks. `edge` keeps the label inside the hand at either end.
+ * first tap on a phone), and takes no clicks. `at` (0 for the first tile, 1 for the last) slides the
+ * label along so it stays over the hand at either end. `phoneBubble={false}`: on a phone the label is
+ * MarkCaption's line under the hand instead (the flat hand sits in a scrolling dock that would clip it).
  */
-export function TileMarks({ kinds, edge }: { kinds: MarkKind[]; edge?: "start" | "end" }) {
+export function TileMarks({ kinds, at, phoneBubble = true }: { kinds: MarkKind[]; at: number; phoneBubble?: boolean }) {
   if (!kinds.length) return null;
   return (
     <>
       {kinds.map((kind) => (
         <MarkGlyph key={kind} kind={kind} className={styles.onTile} />
       ))}
-      <span className={styles.tip} data-edge={edge} data-several={kinds.length > 1 || undefined} aria-hidden="true">
+      <span className={styles.tip} style={{ "--at": at } as CSSProperties} data-several={kinds.length > 1 || undefined} data-phone-bubble={phoneBubble ? undefined : "off"} aria-hidden="true">
         {kinds.map((kind) => (
           <span key={kind} className={styles.tipRow}>
             <MarkGlyph kind={kind} className={styles.glyph} />
@@ -86,8 +88,28 @@ export function TileMarks({ kinds, edge }: { kinds: MarkKind[]; edge?: "start" |
   );
 }
 
-/** Which end of the hand a tile is near, so its label opens inward. */
-export const edgeOf = (index: number, count: number): "start" | "end" | undefined => (index < 2 ? "start" : index >= count - 2 ? "end" : undefined);
+/** Where a tile sits along the hand, 0 to 1, for TileMarks' `at`. */
+export const atOf = (index: number, count: number) => (count > 1 ? index / (count - 1) : 0.5);
+
+/**
+ * The flat hand's label on a phone: a line under the tiles saying what the lifted tile's marks mean.
+ * Its room is kept for the whole turn once any tile is marked, so nothing moves between the two taps.
+ */
+export function MarkCaption({ kinds, show }: { kinds: MarkKind[]; show: boolean }) {
+  if (!show) return null;
+  return (
+    <p className={styles.caption} aria-hidden="true">
+      {kinds.length
+        ? kinds.map((kind) => (
+            <span key={kind}>
+              <MarkGlyph kind={kind} className={styles.glyph} /> <b>{MARK_INFO[kind].name}</b>
+              {kinds.length === 1 ? ` · ${MARK_INFO[kind].detail}` : null}
+            </span>
+          ))
+        : "Lift a marked tile to see what its mark means."}
+    </p>
+  );
+}
 
 // ── The legend ────────────────────────────────────────────────────────────────────────────────────
 // Remembered per kind (a shield first seen hands later still gets explained). A blocked store only

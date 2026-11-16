@@ -6,7 +6,7 @@ import { useElementWidth } from "@/app/components/games/mahjong/table/board";
 import { motionOff, noteThrow } from "@/app/lib/games/mahjong/motion";
 import { playCue } from "@/app/lib/games/mahjong/sound";
 import { tileName, type TileId } from "@/app/lib/games/mahjong/tiles";
-import { edgeOf, marksOf, marksSpoken, TileMarks } from "@/app/components/games/mahjong/table/hand-marks";
+import { atOf, MarkCaption, marksOf, marksSpoken, TileMarks } from "@/app/components/games/mahjong/table/hand-marks";
 import styles from "@/app/components/games/mahjong/table/table-board.module.scss";
 
 export type TileMark = "ready" | "best" | "lesson";
@@ -119,7 +119,7 @@ export function MyHand({ tiles, drawn, allowed, turn, selected, onSelect, onDisc
     return (
       <span key={id} className={styles.slot} data-id={id} data-new={newDraw === id || undefined} data-apart={apart || undefined} data-mark={mark} data-mark-host={kinds.length ? "" : undefined} data-lifted={selected === id || undefined} style={apart ? { marginLeft: Math.round(size * 0.45) } : undefined}>
         <Tile id={id} size={size} dim={faded} selected={selected === id} onClick={can ? (event) => press(id, event.currentTarget) : undefined} disabled={!can} highlight={mark === "lesson"} title={kinds.length ? `${tileName(id)}: ${marksSpoken(kinds)}` : undefined} />
-        <TileMarks kinds={kinds} edge={edgeOf(index, count)} />
+        <TileMarks kinds={kinds} at={atOf(index, count)} phoneBubble={false} />
       </span>
     );
   };
@@ -130,6 +130,7 @@ export function MyHand({ tiles, drawn, allowed, turn, selected, onSelect, onDisc
         {tiles.map((id, index) => render(id, false, index))}
         {drawn !== null ? render(drawn, true, tiles.length) : null}
       </div>
+      <MarkCaption kinds={selected !== null ? marksOf(selected, marks, safe) : []} show={(drawn !== null ? [...tiles, drawn] : tiles).some((id) => marksOf(id, marks, safe).length > 0)} />
     </div>
   );
 }
