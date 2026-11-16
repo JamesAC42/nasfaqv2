@@ -51,7 +51,7 @@ export const FLAT = -Math.PI / 2;
 export const HAND_LEAN = -0.42;
 
 /**
- * Where each opponent sits. `p` is the figure's anchor: the line the cutout is cropped at (the collar,
+ * Where each opponent sits. `p` is the figure's anchor: the line the cutout is cropped at (its crop line,
  * for art with face metrics), placed just below the table's edge as the camera sees it so the crop
  * stays hidden and the head and shoulders rise above the rim. `ipd` is how far apart the eyes come out,
  * which sets every talent's head to one size (see scene-portraits); art without face metrics falls back
@@ -65,7 +65,7 @@ export type PortraitSpot = { p: Vec3; ipd: number; shoulder: number; maxHeight: 
 
 export function portraitSpot(seat: number, narrow: number): PortraitSpot {
   const lerp = (a: number, b: number) => a + (b - a) * narrow;
-  if (seat === 2) return { p: [0, lerp(-1.2, -5), lerp(-50.5, -60)], ipd: lerp(5.6, 4.4), shoulder: lerp(27, 20), maxHeight: lerp(40, 30), card: lerp(13, 10), size: lerp(25, 19) };
+  if (seat === 2) return { p: [0, lerp(-1.2, -5), lerp(-50.5, -60)], ipd: lerp(5.0, 4.4), shoulder: lerp(27, 20), maxHeight: lerp(40, 30), card: lerp(13, 10), size: lerp(30, 22) };
   // Side players swing round from the middle of their side (landscape) to the far corner (phone): along
   // an arc, pushed out so that in between they stay behind the rim rather than cutting across the felt.
   // The swing leads the rest of the move, so a tablet's frame already has them tucked in from its edges.
@@ -80,7 +80,7 @@ export function portraitSpot(seat: number, narrow: number): PortraitSpot {
     x *= out;
     z *= out;
   }
-  return { p: [side * x, lerp(-1.2, -6), z], ipd: lerp(5.8, 4.2), shoulder: lerp(28, 20), maxHeight: lerp(42, 28), card: lerp(13, 10), size: lerp(25, 18) };
+  return { p: [side * x, lerp(-1.2, -6), z], ipd: lerp(5.8, 4.2), shoulder: lerp(28, 20), maxHeight: lerp(42, 28), card: lerp(13, 10), size: lerp(30, 21) };
 }
 
 /** Where the camera leans on an opponent's big moment: their chest, so the push-in keeps the table in view. */

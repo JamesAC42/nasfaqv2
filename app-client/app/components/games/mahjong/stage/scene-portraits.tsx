@@ -3,8 +3,8 @@
 // The three opponents as camera-facing cutouts seated behind their side of the table: each seat's
 // talent, in the mood the hand puts them in (think on their turn, riichi when they declare, win when
 // they win). Half-body art with face metrics (art.ts) is scaled so the eyes come out the same distance
-// apart for every talent, and cropped a little under the collar: that line sits on the seat's anchor,
-// just below the table's edge, and nothing under it is ever drawn. Lit by the lamp from the table side,
+// apart for every talent, and cut at its crop line (mid-chest unless the art says otherwise): that line
+// sits on the seat's anchor, just below the table's edge, and nothing under it is ever drawn. Lit by the lamp from the table side,
 // with a thin rim of the seat's color on the far edge; a mood change cross-fades between images.
 // A talent without half-body art gets a lit card with their reaction art (or their ticker, if that
 // can't be loaded); while an image loads a plain silhouette stands in.
@@ -22,8 +22,8 @@ import { artId, lookupArt, resolveArtUrl, type ChibiPose } from "@/app/lib/art-m
 import { useArtStore } from "@/app/stores/art-store";
 
 const MOODS: Mood[] = ["idle", "think", "riichi", "win"];
-/** How far under the eyes the crop runs, in eye distances: just past the collar, above any neckline. */
-const COLLAR = 2.35;
+/** Where art without its own crop line is cut: this many eye distances under the eyes, about mid-chest. */
+const MID_CHEST = 3.7;
 
 const vertex = /* glsl */ `
   uniform float uTime;
@@ -400,7 +400,7 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
       const imageAspect = image.width / image.height;
       const width = spot.ipd / face.ipd;
       const height = width / imageAspect;
-      const cropTop = Math.min(0.98, face.eyeY + COLLAR * face.ipd * imageAspect);
+      const cropTop = Math.min(0.98, face.crop ?? face.eyeY + MID_CHEST * face.ipd * imageAspect);
       const cropV = 1 - cropTop;
       mesh.scale.set(width, height, 1);
       mesh.position.set(0, height * (0.5 - cropV), 0);
