@@ -4,6 +4,7 @@
 
 .page {
   display: grid;
+  align-content: start;
   gap: 1.25rem;
   width: 100%;
   max-width: 44rem;
@@ -12,6 +13,7 @@
 
 .pageHead {
   display: grid;
+  align-content: start;
   gap: 0.3rem;
   padding-bottom: 0.85rem;
   border-bottom: 1px solid var(--rule);
