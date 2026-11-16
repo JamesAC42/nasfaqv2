@@ -175,7 +175,9 @@ export function NotificationSettings() {
   const togglePush = (on: boolean) =>
     run(async () => {
       if (!data) return;
-      if (on && !subscribedHere) await subscribeHere(data);
+      // Always save this browser when turning it on: it may be subscribed already but saved for
+      // another account, or removed from another device's list. subscribeHere reuses the subscription.
+      if (on) await subscribeHere(data);
       setData(await save({ preferences: { checkin_reminder_push: on } }));
     });
 

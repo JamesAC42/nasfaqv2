@@ -26,6 +26,7 @@ test("push is off unless all three settings are there and well-formed; the start
   assert.equal(webPush.readConfig({ ...KEYED, WEB_PUSH_SUBJECT: "" }).reason, "unset");
   assert.equal(webPush.readConfig({ ...KEYED, WEB_PUSH_VAPID_PRIVATE_KEY: "short" }).reason, "invalid");
   assert.equal(webPush.readConfig({ ...KEYED, WEB_PUSH_SUBJECT: "not a url" }).reason, "invalid");
+  assert.equal(webPush.readConfig({ ...KEYED, WEB_PUSH_VAPID_PUBLIC_KEY: webpushLib.generateVAPIDKeys().publicKey }).reason, "invalid", "keys from two pairs");
   assert.deepEqual(webPush.readConfig(KEYED).config, { publicKey: keys.publicKey, privateKey: keys.privateKey, subject: KEYED.WEB_PUSH_SUBJECT });
 
   for (const env of [{}, KEYED, { ...KEYED, WEB_PUSH_VAPID_PRIVATE_KEY: "short" }]) {
@@ -43,7 +44,7 @@ test("push is off unless all three settings are there and well-formed; the start
 });
 
 test("subscriptions: only https endpoints at known push services", () => {
-  for (const host of ["fcm.googleapis.com", "updates.push.services.mozilla.com", "web.push.apple.com", "wns2-par02p.notify.windows.com"]) {
+  for (const host of ["fcm.googleapis.com", "jmt17.google.com", "updates.push.services.mozilla.com", "web.push.apple.com", "wns2-par02p.notify.windows.com"]) {
     assert.ok(webPush.cleanSubscription(subscription(host)), host);
   }
   for (const endpoint of [
@@ -350,7 +351,15 @@ test("check-in reminders", { skip: !databaseUrl, timeout: 120_000 }, async (t) =
       assert.equal((await call("PUT", "/notifications", owner, { preferences: { email_everything: true } })).body.error, "unknown_preference");
       assert.equal((await settings.getSettings(pool, other)).preferences.checkin_reminder_push, false, "only the caller's");
 
-      assert.equal((await call("POST", "/notifications/devices", owner, { subscription: { endpoint: "https://evil.test/x", keys: subscription().keys } })).body.error, "invalid_subscription");
+      const warn = console.warn;
+      const warned = [];
+      console.warn = (line) => warned.push(String(line));
+      try {
+        assert.equal((await call("POST", "/notifications/devices", owner, { subscription: { endpoint: "https://evil.test/private-path", keys: subscription().keys } })).body.error, "invalid_subscription");
+      } finally {
+        console.warn = warn;
+      }
+      assert.deepEqual(warned, ["push subscription refused (host evil.test)"], "the host only, never the path");
       const sub = subscription();
       const added = await call("POST", "/notifications/devices", owner, { subscription: sub });
       assert.equal(added.status, 200);

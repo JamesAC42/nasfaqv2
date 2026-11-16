@@ -10,6 +10,7 @@
 // never goes in a log line or an error message (WebPushError carries it, so only its status code is
 // kept), and the site never gets it back.
 
+const crypto = require("node:crypto");
 const webpush = require("web-push");
 
 // Push services the major browsers use. A subscription naming any other host is refused, so the API
@@ -17,8 +18,9 @@ const webpush = require("web-push");
 //   Chrome, Edge (Chromium), Android, Samsung Internet, Opera, Brave: fcm.googleapis.com
 //   Firefox: updates.push.services.mozilla.com   Safari (macOS, iOS 16.4+ home-screen apps): web.push.apple.com
 //   Edge's legacy Windows channel: *.notify.windows.com
+//   Some Chrome builds get endpoints on other Google hosts (e.g. jmt17.google.com), hence the suffixes.
 const PUSH_HOSTS = ["fcm.googleapis.com", "android.googleapis.com"];
-const PUSH_HOST_SUFFIXES = [".push.services.mozilla.com", ".push.apple.com", ".notify.windows.com"];
+const PUSH_HOST_SUFFIXES = [".googleapis.com", ".google.com", ".push.services.mozilla.com", ".push.apple.com", ".notify.windows.com"];
 const MAX_ENDPOINT_LENGTH = 2048;
 const SEND_TIMEOUT_MS = 15_000;
 
@@ -31,6 +33,10 @@ function readConfig(env = process.env) {
   try {
     // Checks the keys' encoding and length and the subject's form, and throws on any of them.
     webpush.getVapidHeaders("https://fcm.googleapis.com", subject, publicKey, privateKey, "aes128gcm");
+    // And that they're one pair: a public key from another pair would make every send fail.
+    const ecdh = crypto.createECDH("prime256v1");
+    ecdh.setPrivateKey(Buffer.from(privateKey, "base64url"));
+    if (ecdh.getPublicKey().toString("base64url") !== publicKey.replace(/=+$/, "")) return { config: null, reason: "invalid" };
   } catch {
     return { config: null, reason: "invalid" };
   }
@@ -67,6 +73,15 @@ function allowedEndpoint(endpoint) {
   if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== "443")) return false;
   const host = url.hostname.toLowerCase();
   return PUSH_HOSTS.includes(host) || PUSH_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
+}
+
+/** Just the host of an endpoint we refused (never its path, which identifies the browser), for the log. */
+function endpointHost(endpoint) {
+  try {
+    return new URL(String(endpoint)).hostname.slice(0, 100) || null;
+  } catch {
+    return null;
+  }
 }
 
 const BASE64URL = /^[A-Za-z0-9_-]+={0,2}$/;
@@ -123,4 +138,4 @@ function override(env) {
   };
 }
 
-module.exports = { allowedEndpoint, cleanSubscription, isConfigured, isGone, override, publicKey, readConfig, send, startupLine };
+module.exports = { allowedEndpoint, cleanSubscription, endpointHost, isConfigured, isGone, override, publicKey, readConfig, send, startupLine };

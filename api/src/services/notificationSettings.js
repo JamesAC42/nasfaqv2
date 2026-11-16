@@ -112,7 +112,12 @@ async function updatePreferences(db, userId, changes) {
 async function addDevice(db, userId, subscription, { userAgent = "" } = {}) {
   if (!webPush.isConfigured()) throw settingsError("push_unavailable", 503);
   const clean = webPush.cleanSubscription(subscription);
-  if (!clean) throw settingsError("invalid_subscription");
+  if (!clean) {
+    // Only the host, so a browser on a push service the list doesn't know yet shows up in the log.
+    // eslint-disable-next-line no-console
+    console.warn(`push subscription refused (host ${webPush.endpointHost(subscription?.endpoint) ?? "none"})`);
+    throw settingsError("invalid_subscription");
+  }
   const { rows } = await db.query(
     `
     INSERT INTO market.push_subscriptions (user_id, endpoint, p256dh, auth, device_label)
