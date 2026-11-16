@@ -26,7 +26,7 @@ type SceneSpec = { kind: Kind; variants: string[]; place?: Placement; glow?: str
 const SCENES = {
   "mahjong-lobby-quick": { kind: "quick", variants: ["default"], place: { F: 0.4, R: 0.66, max: 2.4, right: 3, rightN: -4 } },
   "mahjong-lobby-practice": { kind: "practice", variants: ["default"], place: { F: 0.37, R: 0.74, max: 2.4, right: 3, rightN: -10 } },
-  // The friend room has two talents: `default` stands at the right, `partner` beside her on the left.
+  // The friend room has two talents: `default` stands at the right, `partner` to its left.
   "mahjong-lobby-friend": { kind: "friend", variants: ["default", "partner"] },
   "mahjong-lobby-chips": { kind: "chips", variants: ["default"], place: { F: 0.45, R: 0.8, max: 1.2, right: 2, rightN: 0 } },
   "mahjong-learn-hub-hero": { kind: "hub", variants: ["default"], place: { F: 0.35, R: 0.8, max: 2.4, right: 3, rightN: 3 }, glow: "82%" },
@@ -137,7 +137,7 @@ function Scene({ slot, figures, frame, width, priority, seconds }: SceneProps) {
   let railTop: number;
 
   if (spec.kind === "friend") {
-    // `default` (right) and `partner` (left, half behind her).
+    // `default` (right) and `partner` (left, half behind the first).
     const [right, left] = figures;
     const pb = place(right, frame, 0.42, { R: 0.7, max: 2.0 });
     const pa = place(left, frame, 0.44, { R: 0.7, max: 2.0 });

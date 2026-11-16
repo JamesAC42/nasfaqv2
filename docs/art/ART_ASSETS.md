@@ -194,7 +194,7 @@ By priority: P0 481, P1 661, P2 95.
 | Animation | none |
 | Fallback | Drawn in learn-art.tsx (HubArt): a winning hand of real tiles standing in its five groups on a blue felt rail, the groups lifting one after another, a rising price line behind and three loose tiles drifting above, on a blue halftone wash. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front. |
 | Used in | /games/mahjong/learn → components/games/mahjong/learn/learn-hub.tsx, the art panel right of the welcome and progress at the top of the page |
-| Notes | Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
+| Notes | Only the talent is generated: a waist-up cutout in the talent's official outfit on a flat backdrop, with the whole head inside the picture and both arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
 
 #### `mahjong-learn-patterns` · Learn mahjong: Five easy patterns · P1
 
@@ -211,7 +211,7 @@ By priority: P0 481, P1 661, P2 95.
 | Animation | none |
 | Fallback | Drawn in learn-art.tsx (PatternsArt): five plinths of different heights, each holding a pattern made of real tiles (a riichi stick, a run of middle bamboo, three white dragons on the tallest, lit plinth, a single drawn tile, a run of characters with a wind). Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front. |
 | Used in | /games/mahjong/learn/easy-patterns → components/games/mahjong/learn/easy-patterns-page.tsx, the art panel beside "In short" at the top of the page |
-| Notes | Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
+| Notes | Only the talent is generated: a waist-up cutout in the talent's official outfit on a flat backdrop, with the whole head inside the picture and both arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
 
 #### `mahjong-learn-rules` · Learn mahjong: Rules page · P1
 
@@ -228,7 +228,7 @@ By priority: P0 481, P1 661, P2 95.
 | Animation | none |
 | Fallback | Drawn in learn-art.tsx (RulesArt): a tilted rule sheet on a clipboard with ruled lines and a real tile pinned to its corner, a white scoring stick with a red dot across the front, and a clock ring with its hand ticking. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front. |
 | Used in | /games/mahjong/learn/rules → components/games/mahjong/learn/rules-page.tsx, the art panel beside "In short" at the top of the page |
-| Notes | Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
+| Notes | Only the talent is generated: a waist-up cutout in the talent's official outfit on a flat backdrop, with the whole head inside the picture and both arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
 
 #### `mahjong-learn-tips` · Learn mahjong: Tips page · P1
 
@@ -238,14 +238,14 @@ By priority: P0 481, P1 661, P2 95.
 | Display | measured: desktop and tablet 414×206 at 1440, 1280, 1021 and 800 wide (up to 414×240 when the "In short" lines wrap), right of the intro, cover; phones 341×138 at 375 wide, full width above the intro css px |
 | Crop | Composited, not cropped: the figure is scaled so its face lands at a set height and its cut line meets the table edge, and it stands at the frame's right. The frame's measured sizes are in css; tiles fill the room to the figure's left. |
 | Background | transparent cutout |
-| Subject | Houshou Marine, sharing a sly secret, hands at her cheeks. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart). |
+| Subject | Houshou Marine, sharing a sly secret, hands at the cheeks. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart). |
 | Lighting | even, flat studio light on a solid backdrop (the composite adds the blue glow) |
 | Style | character |
 | Variants | **default** |
 | Animation | none |
 | Fallback | Drawn in learn-art.tsx (TipsArt): a discard pond of real tiles in two rows, all dimmed but one lit as the safe tile, with a shield and check mark outline beside it. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front. |
 | Used in | /games/mahjong/learn/tips → components/games/mahjong/learn/tips-page.tsx, the art panel beside "In short" at the top of the page |
-| Notes | Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
+| Notes | Only the talent is generated: a waist-up cutout in the talent's official outfit on a flat backdrop, with the whole head inside the picture and both arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
 
 #### `mahjong-learn-yaku` · Learn mahjong: Yaku page · P1
 
@@ -255,14 +255,14 @@ By priority: P0 481, P1 661, P2 95.
 | Display | measured: desktop and tablet 414×206 at 1440, 1280, 1021 and 800 wide (up to 414×240 when the "In short" lines wrap), right of the intro, cover; phones 341×138 at 375 wide, full width above the intro css px |
 | Crop | Composited, not cropped: the figure is scaled so its face lands at a set height and its cut line meets the table edge, and it stands at the frame's right. The frame's measured sizes are in css; tiles fill the room to the figure's left. |
 | Background | transparent cutout |
-| Subject | Takanashi Kiara, counting the han on her fingers. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart). |
+| Subject | Takanashi Kiara, counting the han on raised fingers. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart). |
 | Lighting | even, flat studio light on a solid backdrop (the composite adds the blue glow) |
 | Style | character |
 | Variants | **default** |
 | Animation | none |
 | Fallback | Drawn in learn-art.tsx (YakuArt): a bar chart whose five bars are stacks of real tile backs rising left to right, each topped with a face-up tile, the tallest glowing. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front. |
 | Used in | /games/mahjong/learn/yaku → components/games/mahjong/learn/yaku-page.tsx, the art panel beside "In short" at the top of the page |
-| Notes | Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
+| Notes | Only the talent is generated: a waist-up cutout in the talent's official outfit on a flat backdrop, with the whole head inside the picture and both arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
 
 #### `mahjong-learn-finish` · Learn mahjong: walkthrough finished · P2
 
@@ -279,7 +279,7 @@ By priority: P0 481, P1 661, P2 95.
 | Animation | none |
 | Fallback | Drawn in learn-art.tsx (FinishArt): a blue trophy cup with real tiles bursting up out of it like confetti over slowly turning rays. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front. |
 | Used in | /games/mahjong/learn/tutorial → components/games/mahjong/learn/tutorial.tsx, the spot at the top of the last step (Play it) once every lesson is done |
-| Notes | Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
+| Notes | Only the talent is generated: a waist-up cutout in the talent's official outfit on a flat backdrop, with the whole head inside the picture and both arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
 
 #### `mahjong-learn-glossary` · Learn mahjong: Glossary page · P2
 
@@ -296,7 +296,7 @@ By priority: P0 481, P1 661, P2 95.
 | Animation | none |
 | Fallback | Drawn in learn-art.tsx (GlossaryArt): three index cards fanned out with blue tabs and ruled lines, a real tile on each, the middle card raised and outlined in blue. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front. |
 | Used in | /games/mahjong/learn/glossary → components/games/mahjong/learn/glossary-page.tsx, the art panel beside "In short" at the top of the page |
-| Notes | Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
+| Notes | Only the talent is generated: a waist-up cutout in the talent's official outfit on a flat backdrop, with the whole head inside the picture and both arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
 
 
 ### mahjong (4)
@@ -316,14 +316,14 @@ By priority: P0 481, P1 661, P2 95.
 | Display | measured: desktop 1440 468×152, 1280 415×152, 1021 328×152 (one third of the page, full card width), cover; 721–1020px 240×160 thumbnail at the card's top left; phones 341×112 at 375 wide css px |
 | Crop | Composited, not cropped: the figure is scaled so its face lands at a set height and its cut line meets the table edge, and it stands at the frame's right. The frame's measured sizes are in css; tiles fill the room to the figure's left. |
 | Background | transparent cutout |
-| Subject | Inugami Korone and Nekomata Okayu, Korone winking and waving you over to the open seat, Okayu laughing beside her. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart). |
+| Subject | Inugami Korone and Nekomata Okayu, Korone winking and waving you over to the open seat, Okayu laughing alongside. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart). |
 | Lighting | even, flat studio light on a solid backdrop (the composite adds the blue glow) |
 | Style | character |
-| Variants | **default**: Korone, standing at the right<br>**partner**: Okayu, beside her on the left, half behind |
+| Variants | **default**: Korone, standing at the right<br>**partner**: Okayu, on the left, half behind Korone |
 | Animation | none |
 | Fallback | Drawn in mode-art.tsx: an open door with light spilling across the floor, an invite pill with a link icon, and four seats below it, three friends and one hollow bot seat. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front. |
 | Used in | /games/mahjong → components/games/mahjong/lobby/mahjong-lobby.tsx, the art strip at the top of the Friend room card in the Play section |
-| Notes | Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
+| Notes | Only the talent is generated: a waist-up cutout in the talent's official outfit on a flat backdrop, with the whole head inside the picture and both arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
 
 #### `mahjong-lobby-practice` · Mahjong lobby: Practice vs bots card · P1
 
@@ -333,14 +333,14 @@ By priority: P0 481, P1 661, P2 95.
 | Display | measured: desktop 1440 468×152, 1280 415×152, 1021 328×152 (one third of the page, full card width), cover; 721–1020px 240×160 thumbnail at the card's top left; phones 341×112 at 375 wide css px |
 | Crop | Composited, not cropped: the figure is scaled so its face lands at a set height and its cut line meets the table edge, and it stands at the frame's right. The frame's measured sizes are in css; tiles fill the room to the figure's left. |
 | Background | transparent cutout |
-| Subject | Hoshimachi Suisei, thinking hard over her hand, chin on her fingers. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart). |
+| Subject | Hoshimachi Suisei, thinking hard over the hand, chin on fingers. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart). |
 | Lighting | even, flat studio light on a solid backdrop (the composite adds the blue glow) |
 | Style | character |
 | Variants | **default** |
 | Animation | none |
 | Fallback | Drawn in mode-art.tsx: a top-down square table with your row of real face-up tiles at the bottom marked You (one tile glowing as the hint), and three seats of face-down tiles with hollow bot markers. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front. |
 | Used in | /games/mahjong → components/games/mahjong/lobby/mahjong-lobby.tsx, the art strip at the top of the Practice vs bots card in the Play section |
-| Notes | Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
+| Notes | Only the talent is generated: a waist-up cutout in the talent's official outfit on a flat backdrop, with the whole head inside the picture and both arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
 
 #### `mahjong-lobby-quick` · Mahjong lobby: Quick match card · P1
 
@@ -357,7 +357,7 @@ By priority: P0 481, P1 661, P2 95.
 | Animation | none |
 | Fallback | Drawn in mode-art.tsx: a stopwatch ring showing the bot-fill seconds beside four seat slots, three filled with real East, South and West tiles and one dashed slot with searching dots, over a fill meter, on a blue halftone wash. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front. |
 | Used in | /games/mahjong → components/games/mahjong/lobby/mahjong-lobby.tsx, the art strip at the top of the Quick match card in the Play section |
-| Notes | Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
+| Notes | Only the talent is generated: a waist-up cutout in the talent's official outfit on a flat backdrop, with the whole head inside the picture and both arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
 
 #### `mahjong-lobby-chips` · Mahjong lobby: Chip tables · P2
 
@@ -367,14 +367,14 @@ By priority: P0 481, P1 661, P2 95.
 | Display | measured: desktop and tablet 224×136 at the block's top left, cover; phones 306×112 at 375 wide css px |
 | Crop | Composited, not cropped: the figure is scaled so its face lands at a set height and its cut line meets the table edge, and it stands at the frame's right. The frame's measured sizes are in css; tiles fill the room to the figure's left. |
 | Background | transparent cutout |
-| Subject | Pavolia Reine, celebrating a big finish, fists up beside her head. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart). |
+| Subject | Pavolia Reine, celebrating a big finish, fists up beside the head. Waist-up, facing the viewer, in the approved house style (cel shading, clean lineart). |
 | Lighting | even, flat studio light on a solid backdrop (the composite adds the blue glow) |
 | Style | character |
 | Variants | **default** |
 | Animation | none |
 | Fallback | Drawn in mode-art.tsx: three chip stacks of rising height in the chassis blue and ink tones beside a pair of real tiles, on a blue halftone wash. Once the talent art ships, the composite replaces it: code background, the talent cutout, the table edge and the real tiles in front. |
 | Used in | /games/mahjong → components/games/mahjong/lobby/mahjong-lobby.tsx, the art panel at the left of the Chip tables block (Stakes tables outside the beta) |
-| Notes | Only the talent is generated: a waist-up cutout in her official outfit on a flat backdrop, with her whole head inside the picture and her arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
+| Notes | Only the talent is generated: a waist-up cutout in the talent's official outfit on a flat backdrop, with the whole head inside the picture and both arms inside the frame. No mahjong tiles, table, cards, text or letters in the image: the page draws the background glow, the table edge and the game's own tiles (components/games/mahjong/talent-scene.tsx), so every tile face is exact. The manifest entry needs anchors face_y (face center) and cut_y (where the table edge goes), both fractions of the height, and span (the figure's width as a fraction of the image width); without them, or at another size, the drawn version stays. |
 
 
 ### site (10)
