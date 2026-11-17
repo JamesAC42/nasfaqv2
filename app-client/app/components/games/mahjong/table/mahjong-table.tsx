@@ -9,7 +9,7 @@ import { BetaTag } from "@/app/components/games/mahjong/beta/beta";
 import { FeedbackButton } from "@/app/components/games/mahjong/feedback/feedback-button";
 import { usePhone } from "@/app/components/games/blackjack/bj-utils";
 import { ActionBar, ActionHints } from "@/app/components/games/mahjong/table/action-bar";
-import { Board, useCallouts } from "@/app/components/games/mahjong/table/board";
+import { Board, SeatPlate, useCallouts } from "@/app/components/games/mahjong/table/board";
 import { GameOver } from "@/app/components/games/mahjong/table/game-over";
 import { CoachPanel, CoachStrip, safeTiles } from "@/app/components/games/mahjong/table/coach-panel";
 import { CheatSheet, HelpPanel } from "@/app/components/games/mahjong/table/help-panel";
@@ -30,7 +30,7 @@ import { WaitingRoom } from "@/app/components/games/mahjong/table/waiting-room";
 import { TalentSelect } from "@/app/components/games/mahjong/select/talent-select";
 import { HandButtons } from "@/app/components/games/mahjong/stage/hand-buttons";
 import { MarkLegend } from "@/app/components/games/mahjong/table/hand-marks";
-import { LiveStage, webglAvailable } from "@/app/components/games/mahjong/stage/live-stage";
+import { LiveStage, StageTray, webglAvailable } from "@/app/components/games/mahjong/stage/live-stage";
 import { TileBack } from "@/app/components/games/mahjong/tile";
 import type { Coach } from "@/app/lib/games/mahjong/types";
 import type { ChibiPose } from "@/app/lib/art-manifest";
@@ -603,6 +603,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
       advice={helpOn && !lesson && liveHasUi ? (liveCoach?.call_advice ?? null) : null}
       suggestion={liveCoach?.suggestion ?? null}
       timed={Boolean(me?.deadline && me.turn_ms !== null && table.speed !== "untimed")}
+      compact={use3d && phone}
     />
   ) : null;
 
@@ -612,6 +613,37 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
       {status}
     </p>
   );
+  // With help off nothing else says so: a one-line note while a ron is off the table.
+  const furiten = !helpOn && !over && seatHand?.help.waits.length ? seatHand.help.furiten : null;
+  const furitenNote = furiten ? (
+    <p className={styles.furiten} role="status">
+      {furiten === "riichi"
+        ? "Furiten for the rest of the hand: only a self-draw can win."
+        : furiten === "passed"
+          ? "Furiten until your next turn: you let a winning tile go by, so only a self-draw can win."
+          : "Furiten: you’ve thrown a tile you wait on, so only a self-draw can win."}
+    </p>
+  ) : null;
+  // The 3D table's moves sit in a tray under the stage. On a phone, where the call buttons would end up
+  // behind the site's bottom bar, the moves go to the sticky dock (only a seated player has one), and
+  // only them: the dock then stays short enough to leave your hand, at the stage's foot, in view.
+  const trayDocked = use3d && phone && Boolean(seatHand);
+  const moves3d = (
+    <>
+      {statusLine}
+      {furitenNote}
+      {clock}
+      {actionBar}
+    </>
+  );
+  const tray3d = trayDocked ? markLegend : (
+    <>
+      {moves3d}
+      {markLegend}
+    </>
+  );
+  // The same on the flat board for your plate: at the board's foot it would sit behind the dock.
+  const plateDocked = !use3d && phone && Boolean(seatHand);
   const spectatorBacks = watching && !use3d ? (
     <div className={styles.watchHand} data-fly-src={bottom} aria-label={`${myInfo.count} tiles in hand`}>
       {Array.from({ length: myInfo.has_drawn ? myInfo.count - 1 : myInfo.count }, (_, index) => (
@@ -695,14 +727,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
                   floaters={reactions.on ? <ReactionLayer stage={reactions.stage} /> : null}
                   overlay={reveal}
                   hand3d={handView}
-                  tray={
-                    <>
-                      {statusLine}
-                      {clock}
-                      {actionBar}
-                      {markLegend}
-                    </>
-                  }
+                  tray={tray3d}
                   day={theme === "light"}
                   reduced={motionOff()}
                   onFail={onStageFail}
@@ -719,6 +744,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
                   callouts={callouts}
                   floaters={reactions.on ? <ReactionLayer stage={reactions.stage} /> : null}
                   overlay={reveal}
+                  plateDocked={plateDocked}
                 />
               )}
             </div>
@@ -728,7 +754,12 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
               <>
                 {lesson ? <div className={styles.coachInline}><LessonCoach table={table} waiting={!asked || Boolean(over)} /></div> : null}
                 <div className={styles.dock} data-mine={(myTurn && !over) || undefined}>
-                {phone && helpOn && coachUi && !over ? <CoachStrip hand={seatHand} coach={coachUi} selected={selected} closed={closedHand} inRiichi={inRiichi} who={whoOf} myTurn={myTurn} stale={coachStale} /> : null}
+                {trayDocked ? <StageTray docked>{moves3d}</StageTray> : null}
+                {phone && helpOn && coachUi && !over && !trayDocked ? <CoachStrip hand={seatHand} coach={coachUi} selected={selected} closed={closedHand} inRiichi={inRiichi} who={whoOf} myTurn={myTurn} stale={coachStale} /> : null}
+                {plateDocked ? (
+                  <SeatPlate seat={table.seats[seatHand.seat]} hand={hand} seatIndex={seatHand.seat} style={seatStyles[seatHand.seat]} pose={poses[seatHand.seat] ?? "idle"} size={30} isMe deadline={null} cheers={table.cheers[seatHand.seat] ?? 0} score />
+                ) : null}
+                {!use3d ? furitenNote : null}
                 {!use3d ? clock : null}
                 {!use3d ? handView : null}
                 {error ? (
@@ -739,6 +770,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
                 {!use3d ? actionBar : null}
                 {!use3d ? markLegend : null}
                 </div>
+                {phone && helpOn && coachUi && !over && trayDocked ? <CoachStrip hand={seatHand} coach={coachUi} selected={selected} closed={closedHand} inRiichi={inRiichi} who={whoOf} myTurn={myTurn} stale={coachStale} /> : null}
                 {helpOn && !lesson && !over && !(liveHasUi && liveCoach?.call_advice?.length) ? <ActionHints options={options} /> : null}
                 {!lesson ? (
                   <div className={styles.toggles} role="group" aria-label="Table options">

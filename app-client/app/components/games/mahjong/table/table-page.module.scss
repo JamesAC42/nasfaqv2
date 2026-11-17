@@ -284,6 +284,16 @@
   }
 }
 
+// With help off, the one thing a player must not miss: no ron while furiten.
+.furiten {
+  margin: 0;
+  padding: 0.25rem 0.6rem;
+  border-left: 3px solid var(--warn);
+  background: var(--warn-wash);
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
 .error {
   margin: 0;
   padding: 0.4rem 0.6rem;

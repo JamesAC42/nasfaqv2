@@ -371,7 +371,8 @@ function suggest(state, seat, options, rows, seen, threats) {
     }
   }
   row.recommended = true;
-  const riichi = !picked.folding && row.shanten === 0 && row.riichi && row.left > 0;
+  // Never on a furiten wait: riichi there locks in a hand that can only win by self-draw.
+  const riichi = !picked.folding && row.shanten === 0 && row.riichi && row.left > 0 && !row.ready?.furiten;
   return { action: "discard", kind: row.kind, tile: tileFor(state, options, row.kind), riichi, code, ...params, danger: threats.length ? danger(row.kind) : [] };
 }
 
@@ -547,7 +548,8 @@ function turnAdvice(state, seat, options, ctx, rows, threats) {
     if (row?.ready) {
       effects.push({ code: "waits_left", waits: row.ready.waits.length, left: row.left });
       if (row.ready.ron_ok) effects.push({ code: "already_has_yaku" });
-      if (row.ready.furiten) effects.push({ code: "furiten_wait", kind: row.ready.furiten });
+      // A furiten wait leads the list: riichi would lock in a hand that can only win by self-draw.
+      if (row.ready.furiten) effects.unshift({ code: "furiten_wait", kind: row.ready.furiten });
       if (row.left === 0) recommend = "skip";
       else if (!row.ready.ron_ok && !row.ready.furiten) recommend = "take";
     }

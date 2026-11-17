@@ -239,6 +239,21 @@ test("win path: furiten because of its own discard names the kinds", () => {
   assert.deepEqual(flat.win_path.blocked, []);
 });
 
+test("suggestion: never riichi on a furiten wait, and the risk leads its advice", () => {
+  const state = mk({ hands: [SHANPON], draws: "9p" });
+  const furiten = edited(state, (copy) => copy.ponds[0].push(pondEntry("2z")));
+  const help = coachOf(furiten, 0);
+  const row = help.improvers.find((candidate) => candidate.kind === help.suggestion.kind);
+  assert.equal(row.ready.furiten, "discard");
+  assert.equal(help.suggestion.riichi, false);
+  const riichi = help.call_advice.filter((entry) => entry.option.type === "riichi" && help.improvers.find((candidate) => candidate.kind === entry.option.kind)?.ready?.furiten);
+  assert.ok(riichi.length > 0);
+  for (const entry of riichi) {
+    assert.equal(entry.effects[0].code, "furiten_wait");
+    assert.notEqual(entry.recommend, "take");
+  }
+});
+
 test("win path: furiten after a riichi pass", () => {
   const state = mk({ hands: [SHANPON], draws: "9p" });
   const stuck = edited(state, (copy) => {

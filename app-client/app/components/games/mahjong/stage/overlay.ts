@@ -30,16 +30,18 @@ export function anchorWorld(kind: AnchorKind, seat: number, narrow: number): Vec
   // The spot's point is the bottom of the figure, hidden behind the table; its size is the figure's height.
   const spot = portraitSpot(seat, narrow);
   if (kind === "plate") {
-    // On the rim in front of each opponent. A phone lines all three up across the far edge, so the
-    // side players' plates drop a row onto the felt to clear the middle one.
+    // On the rim in front of each opponent: the side players' on their own side of it, in front of their
+    // hand and under the figure rather than over it (on a phone, near the far end, under their corner).
     if (seat === 2) return [0, TABLE.lip + 0.6, -TABLE.rim];
-    if (narrow > 0.5) return [spot.p[0], TABLE.lip + 0.6, -TABLE.rim + 7];
-    // Side players: on their side of the rim, in front of their hand and clear of the plate across.
-    return [Math.sign(spot.p[0]) * (TABLE.rim + 1), TABLE.lip + 0.6, -22];
+    return [Math.sign(spot.p[0]) * (TABLE.rim + 1), TABLE.lip + 0.6, narrow > 0.5 ? -28 : spot.p[2] + 28];
   }
-  // A stamp sits on the rim's line in front of the figure that sent it, over the chest and clear of
-  // the face: the three sit close together, and above a head is off the top of a wide frame.
-  if (kind === "stamp") return [spot.p[0], TABLE.lip - 2, spot.p[2]];
+  if (kind === "stamp") {
+    // Yours pops on the felt in front of you, in the gap between your discards and the next player's,
+    // clear of every face at any width.
+    if (seat === 0) return [19, 5, 19];
+    // An opponent's sits on the rim's line in front of them, over the chest and clear of the face.
+    return [spot.p[0], TABLE.lip - 2, spot.p[2]];
+  }
   // Cheers float up beside the portrait's head, on the side toward the middle of the screen.
   // On a phone the three sit in a row, so cheers rise from above each head instead.
   if (narrow > 0.5 && seat === 2) return [spot.p[0] + spot.shoulder * 0.45, spot.p[1] + spot.size * 0.95, spot.p[2]];

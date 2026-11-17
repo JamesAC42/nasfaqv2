@@ -1,12 +1,13 @@
 "use client";
 
-// The three opponents as camera-facing cutouts seated behind the far side of the table: each seat's
+// The three opponents as cutouts facing the lens, seated behind their side of the table: each seat's
 // talent, in the mood the hand puts them in (think on their turn, riichi when they declare, win when
 // they win). Half-body art with face metrics (art.ts) is scaled so the eyes come out the same distance
 // apart for every talent and placed by its eye line, SHOW eye distances above the rim as the lens sees
 // it, so everyone shows the same stretch of body over the table whatever the framing of their art. It
-// is cut just under the rim's line, and nothing under the cut is ever drawn. Lit by the lamp from the
-// table side, with a thin rim of the seat's color on the far edge; a mood change cross-fades between images.
+// is cut just under the rim's line (on its slant at the sides), and nothing under the cut is ever
+// drawn. Lit by the lamp from the table side, with a thin rim of the seat's color on the far edge; a
+// mood change cross-fades between images.
 // A talent without half-body art gets a lit card with their reaction art (or their ticker, if that
 // can't be loaded); while an image loads a plain silhouette stands in.
 
@@ -14,9 +15,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { faceMetrics, portraitUrl, type FaceMetrics } from "@/app/components/games/mahjong/stage/art";
-import { portraitSpot } from "@/app/components/games/mahjong/stage/geometry";
+import { portraitSpot, portraitYaw } from "@/app/components/games/mahjong/stage/geometry";
 import { useStageStore, type Mood } from "@/app/components/games/mahjong/stage/model";
-import { frameTop, narrowness, rimLine } from "@/app/components/games/mahjong/stage/rig";
+import { basePose, frameTop, narrowness, rimLine } from "@/app/components/games/mahjong/stage/rig";
 import { fx } from "@/app/components/games/mahjong/stage/fx";
 import { radialTexture, silhouetteTexture } from "@/app/components/games/mahjong/stage/textures";
 import { artId, lookupArt, textureArtUrl, type ChibiPose } from "@/app/lib/art-manifest";
@@ -54,6 +55,8 @@ const fragment = /* glsl */ `
   uniform float uOuter;
   uniform vec2 uTexel;
   uniform vec2 uCut;
+  uniform float uCutSlope;
+  uniform float uCutTop;
   varying vec2 vUv;
   float alphaAt(vec2 uv) {
     return mix(texture2D(uA, uv).a, texture2D(uB, uv).a, uMix);
@@ -63,8 +66,11 @@ const fragment = /* glsl */ `
     // Tighten the soft matte edge: the cutouts' transparent pixels are black, so the outermost pixel
     // or two would otherwise filter into a dark (or, lit, a pale) fringe.
     float a = smoothstep(0.35, 0.75, c.a);
-    // Fade out the last stretch above the cut (waist or chest), in case a camera angle shows it past the rim.
-    a *= smoothstep(uCut.x, uCut.x + uCut.y, vUv.y);
+    // Fade out the last stretch above the cut, in case a camera angle shows it past the rim. The cut
+    // follows the rim's slant across the figure (uCutSlope, in uv) up to where the rim levels off
+    // (uCutTop), so it stays just under the rim.
+    float cut = min(uCut.x + uCutSlope * (vUv.x - 0.5), uCutTop);
+    a *= smoothstep(cut, cut + uCut.y, vUv.y);
     if (a < 0.01) discard;
 
     // Where the silhouette's edge is, and which way it faces (alpha rises toward the inside).
@@ -335,8 +341,10 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
   const halo = useMemo(() => radialTexture(0.05, 1.3), []);
   useEffect(() => () => halo.dispose(), [halo]);
   const spot = portraitSpot(seat, narrowness(aspect));
-  // The group's origin is the cut: just under the rim's line all the way across the figure.
-  const rim = rimLine(aspect, spot.p[0], spot.p[2], spot.shoulder / 2);
+  // The rim's line across the figure as it stands turned at rest; the group's origin goes just under
+  // its lowest point, so leaning back never lifts the cut into view.
+  const lens = basePose(aspect).position;
+  const rim = rimLine(aspect, spot.p[0], spot.p[2], spot.shoulder / 2, portraitYaw(lens[0], lens[2], spot.p[0], spot.p[2], spot.turn));
   const anchorY = rim.low - 0.9;
   // The highest the figure may reach and stay in the frame, a little under its top edge.
   const ceiling = frameTop(aspect, spot.p[0], spot.p[2]) - 1.5 - anchorY;
@@ -360,6 +368,8 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
           uOuter: { value: 0 },
           uTexel: { value: new THREE.Vector2(1 / 640, 1 / 640) },
           uCut: { value: new THREE.Vector2(0, 0.0001) },
+          uCutSlope: { value: 0 },
+          uCutTop: { value: 1 },
           uTime: { value: 0 },
           uPhase: { value: seat * 1.9 },
           uSway: { value: 0 },
@@ -385,15 +395,14 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
     const g = group.current;
     const mesh = plane.current;
     if (!g || !mesh) return;
-    // Face the lens: turn about the vertical, and lean back part of the way toward it so a steep phone
-    // camera doesn't see the cutouts squashed. The group's origin is the crop line, below the table's
-    // edge, so leaning never lifts the cut into view.
+    // Face the lens (side players turned partway toward the middle, see portraitSpot) and lean back part
+    // of the way toward it so a steep phone camera doesn't see the cutouts squashed.
     const camera = state.camera;
     const dx = camera.position.x - g.position.x;
     const dz = camera.position.z - g.position.z;
     const dy = camera.position.y - g.position.y;
     const win = fx.seat[seat];
-    g.rotation.set(-Math.atan2(dy, Math.hypot(dx, dz)) * 0.6, Math.atan2(dx, dz), 0, "YXZ");
+    g.rotation.set(-Math.atan2(dy, Math.hypot(dx, dz)) * 0.6, portraitYaw(camera.position.x, camera.position.z, g.position.x, g.position.z, spot.turn), 0, "YXZ");
     g.scale.setScalar(1 + 0.05 * win);
 
     const f = fade.current;
@@ -410,8 +419,8 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
       const imageAspect = image.width / image.height;
       let width = spot.ipd / face.ipd;
       let height = width / imageAspect;
-      // The eye line SHOW eye distances over the rim's line at the figure's middle; the cut (the group's
-      // origin) lands wherever that falls in the image.
+      // The eye line SHOW eye distances over the rim's line at the figure's middle; the cut runs just
+      // under that line, sloping with it.
       const line = rim.center - anchorY;
       let eye = line + SHOW * spot.ipd;
       let y = eye - (0.5 - face.eyeY) * height;
@@ -426,17 +435,21 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
         eye = line + (eye - line) * k;
         y = eye - (0.5 - face.eyeY) * height;
       }
-      const cutV = Math.max(0, 0.5 - y / height);
+      const cutV = (line - 0.9 - (y - height / 2)) / height;
       mesh.scale.set(width, height, 1);
       mesh.position.set(0, y, 0);
       u.uCut.value.set(cutV, 0.035);
-      figure = height * (1 - cutV) * 0.92;
+      u.uCutSlope.value = (rim.slope * width) / height;
+      u.uCutTop.value = cutV + (rim.high - rim.center) / height;
+      figure = height * (1 - Math.max(0, cutV)) * 0.92;
     } else if (textures.card && b !== textures.fallback) {
       const width = spot.card;
       const height = (width * CARD_H) / CARD_W;
       mesh.scale.set(width, height, 1);
       mesh.position.set(0, height * 0.5 - 1.5, 0);
       u.uCut.value.set(0, 0.0001);
+      u.uCutSlope.value = 0;
+      u.uCutTop.value = 1;
       figure = height * 0.8;
     } else if (textures.fallbackFit) {
       const fit = textures.fallbackFit;
@@ -447,6 +460,8 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
       mesh.scale.set(width, height, 1);
       mesh.position.set(-(fit.cx - 0.5) * width, height * (0.5 - fit.bottom), 0);
       u.uCut.value.set(fit.bottom, fit.height * 0.12);
+      u.uCutSlope.value = 0;
+      u.uCutTop.value = 1;
       figure = fit.height * height;
     }
     const haloMesh = haloRef.current;

@@ -99,7 +99,7 @@ function PlateClock({ deadline }: { deadline: number }) {
   );
 }
 
-function SeatPlate({
+export function SeatPlate({
   seat,
   hand,
   seatIndex,
@@ -212,6 +212,8 @@ export type BoardProps = {
   floaters?: ReactNode;
   /** Drawn over the board (the win reveal). */
   overlay?: ReactNode;
+  /** Your plate is shown elsewhere (a phone keeps it in the table page's sticky dock, which would cover it here). */
+  plateDocked?: boolean;
 };
 
 /** A called set. When it is new, the called tile flies to it from the pond it was taken from. */
@@ -224,7 +226,7 @@ function MeldView({ meld, owner, size, fresh }: { meld: Meld; owner: SeatIndex; 
   );
 }
 
-export function Board({ table, game, hand, bottom, me, seatStyles, poses, callouts, floaters, overlay }: BoardProps) {
+export function Board({ table, game, hand, bottom, me, seatStyles, poses, callouts, floaters, overlay, plateDocked }: BoardProps) {
   const [ref, width] = useElementWidth<HTMLDivElement>();
   const prev = usePrevHand(hand, `${table.id}:${game.hand_index}`);
   const newRiichi = (seat: SeatIndex) => Boolean(prev && hand.seats[seat].riichi > prev.seats[seat].riichi);
@@ -295,7 +297,7 @@ export function Board({ table, game, hand, bottom, me, seatStyles, poses, callou
       </div>
       <div className={styles.bottomPond}>{pond("bottom")}</div>
       <div className={styles.mineRow}>
-        <SeatPlate seat={table.seats[mine]} hand={hand} seatIndex={mine} style={seatStyles[mine]} pose={poses[mine] ?? "idle"} size={plateSize} isMe={me === mine} deadline={me === mine ? null : deadlineOf(mine)} cheers={table.cheers[mine] ?? 0} score fresh={newRiichi(mine)} />
+        {plateDocked ? null : <SeatPlate seat={table.seats[mine]} hand={hand} seatIndex={mine} style={seatStyles[mine]} pose={poses[mine] ?? "idle"} size={plateSize} isMe={me === mine} deadline={me === mine ? null : deadlineOf(mine)} cheers={table.cheers[mine] ?? 0} score fresh={newRiichi(mine)} />}
         {myInfo.melds.length ? (
           <div className={styles.mineMelds}>
             {myInfo.melds.map((meld, index) => (

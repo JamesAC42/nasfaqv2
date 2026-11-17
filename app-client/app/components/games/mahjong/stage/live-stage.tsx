@@ -153,7 +153,7 @@ export type LiveStageProps = {
   overlay?: ReactNode;
   /** Your hand's buttons (HandButtons), pinned over your tiles; null when watching. */
   hand3d?: ReactNode;
-  /** Under the stage: your moves. */
+  /** Under the stage: your moves (on a phone the table page puts them in its sticky dock, see StageTray). */
   tray?: ReactNode;
   day: boolean;
   reduced: boolean;
@@ -174,7 +174,6 @@ export function LiveStage({ table, game, hand, bottom, me, seatStyles, callouts,
   useEffect(() => reset, [reset]);
   const held = useHeldOverlay(overlay, reduced);
   const shown = Object.entries(stamps ?? {}).map(([real, stamp]) => ({ seat: stageSeat(Number(real), bottom), ...stamp }));
-  const mine = shown.find((stamp) => stamp.seat === 0);
 
   return (
     <div className={styles.live}>
@@ -187,15 +186,29 @@ export function LiveStage({ table, game, hand, bottom, me, seatStyles, callouts,
             <Nameplate key={realSeat(seat, bottom)} seat={seat} />
           ))}
         </div>
-        <SeatHud you={me !== null}>{mine ? <StampPop key={mine.at} seat={0} pose={mine.pose} /> : null}</SeatHud>
+        <SeatHud you={me !== null} />
         <TableSummary model={model} hand={hand} />
         <CalloutLayer callouts={callouts} bottom={bottom} />
-        {shown.map((stamp) => (stamp.seat !== 0 ? <StampPop key={`${stamp.seat}-${stamp.at}`} seat={stamp.seat} pose={stamp.pose} /> : null))}
+        {shown.map((stamp) => (
+          <StampPop key={`${stamp.seat}-${stamp.at}`} seat={stamp.seat} pose={stamp.pose} />
+        ))}
         {floaters}
         {hand3d}
         {held}
       </div>
-      {tray ? <div className={styles.tray}>{tray}</div> : null}
+      {tray ? <StageTray>{tray}</StageTray> : null}
+    </div>
+  );
+}
+
+/**
+ * The tray of moves under the stage. `docked` is the copy a phone keeps in the table page's sticky
+ * dock, so the call buttons stay above the site's bottom bar however the page is scrolled.
+ */
+export function StageTray({ docked, children }: { docked?: boolean; children: ReactNode }) {
+  return (
+    <div className={styles.tray} data-docked={docked || undefined}>
+      {children}
     </div>
   );
 }

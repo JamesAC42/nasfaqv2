@@ -175,10 +175,15 @@
   overflow: visible;
 }
 
-// Phones: compact plates (three share one row under the portraits).
+// Phones: compact plates, the name over the points, so three fit across the narrow frame unclipped.
 @mixin compact-plate {
-  gap: 0.3rem;
-  padding: 0.16rem 0.4rem 0.16rem 0.22rem;
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: center;
+  justify-items: center;
+  align-items: center;
+  gap: 0.05rem 0.3rem;
+  padding: 0.16rem 0.4rem;
 
   .spark,
   .plateWind {
@@ -186,6 +191,7 @@
   }
 
   .plateName {
+    grid-column: 1 / -1;
     font-size: 0.58rem;
   }
 
@@ -502,8 +508,8 @@
 }
 
 // ── Stamps ───────────────────────────────────────────────────────────────────
-// Centered on its pin (an opponent's, on the rim in front of them) or hung under your plate. The outer
-// span places it, the inner one moves; it plays out over the table's 2.6 s stamp.
+// Centered on its pin (an opponent's on the rim in front of them, yours on the felt in front of you).
+// The outer span places it, the inner one moves; it plays out over the table's 2.6 s stamp.
 .stampPop {
   --size: 4.5rem;
   position: absolute;
@@ -515,21 +521,8 @@
   transform: translate(-50%, -50%);
   pointer-events: none;
 
-  &[data-mine] {
-    top: calc(100% + 0.45rem);
-    left: 0.1rem;
-    transform: none;
-  }
-
-  // A phone's portraits start right under your plate: beside it is clear.
   @include phone {
     --size: 3.1rem;
-
-    &[data-mine] {
-      top: 50%;
-      left: calc(100% + 0.5rem);
-      transform: translateY(-50%);
-    }
   }
 }
 
@@ -777,6 +770,11 @@
 
   > [role="timer"] {
     flex: 1 1 100%;
+  }
+
+  // In the table page's dock on a phone: right under the stage when scrolled to the top.
+  &[data-docked] {
+    border-top: 0;
   }
 }
 

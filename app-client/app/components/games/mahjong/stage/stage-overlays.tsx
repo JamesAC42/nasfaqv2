@@ -85,24 +85,20 @@ export function SeatHud({ you, children }: { you: boolean; children?: React.Reac
 
 /**
  * A talent stamp, popping up for as long as the table shows it: an opponent's on the rim in front of
- * them, yours under your plate (pass it to SeatHud), so you see what you sent too. The scene's
- * portraits have no stamp poses, so this is the only place a stamp shows on the stage.
+ * them, yours on the felt in front of you, so you see what you sent too. The scene's portraits have
+ * no stamp poses, so this is the only place a stamp shows on the stage.
  */
 export function StampPop({ seat, pose }: { seat: number; pose: StampPose }) {
   const info = useStageStore((s) => s.model.seats[seat]);
   const reduced = useStageStore((s) => s.ui.reduced);
   if (!info?.symbol) return null;
-  const face = (
-    <span className={styles.stampPop} data-mine={seat === 0 || undefined} data-reduced={reduced || undefined} style={{ "--seat": info.color } as CSSProperties}>
-      <span className={styles.stampFace}>
-        <ReactionFace symbol={info.symbol} pose={pose} size={64} crop="full" />
-      </span>
-    </span>
-  );
-  if (seat === 0) return face;
   return (
     <div className={styles.pin} ref={(el) => registerOverlay(anchorKey("stamp", seat), el)}>
-      {face}
+      <span className={styles.stampPop} data-reduced={reduced || undefined} style={{ "--seat": info.color } as CSSProperties}>
+        <span className={styles.stampFace}>
+          <ReactionFace symbol={info.symbol} pose={pose} size={64} crop="full" />
+        </span>
+      </span>
     </div>
   );
 }

@@ -57,21 +57,47 @@ export const HAND_LEAN = -0.42;
  * to `shoulder`, the width of the bottom of its figure, capped at `maxHeight` so a head never leaves the
  * frame. `shoulder` is also the width the rim has to hide the cut across. `card` is the width of the lit
  * card a talent without half-body art gets. `size` is the nominal figure height, for pinning overlays
- * near the head.
+ * near the head. `turn` is how far the cutout turns from square to the lens toward the table's middle.
  *
- * All three sit behind the far rim, the side players toward its corners: from the chair the far rim
- * runs level across the frame, so it hides every cut along one clean line. Behind a side rim the lens
- * looks along the rim, which then crosses a figure on a steep slant, slicing the inner shoulder while
- * the outer one hangs cut off in the air. A phone pulls the side players in and the one across back,
- * so all three fit its narrow frame.
+ * Side players sit behind their own side of the table, toward its far end so the lens takes them in,
+ * and far enough out that the whole cutout stays outside the rim: the rim then passes in front of them
+ * on its slant, hiding the lower body along one clean edge, as with someone seated behind a table's
+ * edge. Turning them partway toward the middle keeps their inner shoulder from reaching back over the
+ * rim and flattens that slant. A phone's frame ends at the side rims, so there they move up to the far
+ * corners of their own side, still turned toward the middle, and the one across moves back.
  */
-export type PortraitSpot = { p: Vec3; ipd: number; shoulder: number; maxHeight: number; card: number; size: number };
+export type PortraitSpot = { p: Vec3; ipd: number; shoulder: number; maxHeight: number; card: number; size: number; turn: number };
 
 export function portraitSpot(seat: number, narrow: number): PortraitSpot {
   const lerp = (a: number, b: number) => a + (b - a) * narrow;
-  if (seat === 2) return { p: [0, lerp(-1.2, -5), lerp(-50.5, -60)], ipd: lerp(5.0, 4.4), shoulder: lerp(27, 20), maxHeight: lerp(40, 30), card: lerp(13, 10), size: lerp(30, 22) };
+  if (seat === 2) return { p: [0, lerp(-1.2, -5), lerp(-50.5, -60)], ipd: lerp(5.0, 4.4), shoulder: lerp(27, 20), maxHeight: lerp(40, 30), card: lerp(13, 10), size: lerp(30, 22), turn: 0 };
+  // From their side (landscape) to their far corner (phone) along an arc, pushed out so that in between
+  // they stay clear of the rim. The swing leads the rest of the move.
   const side = seat === 1 ? 1 : -1;
-  return { p: [side * lerp(36, 25), lerp(-1.2, -6), lerp(-49, -50)], ipd: lerp(6.2, 4.2), shoulder: lerp(26, 20), maxHeight: lerp(40, 28), card: lerp(13, 10), size: lerp(30, 21) };
+  const swing = Math.min(1, narrow * 1.35);
+  const angle = Math.atan2(-36, 50) + (Math.atan2(-51, 38) - Math.atan2(-36, 50)) * swing;
+  const radius = Math.hypot(50, 36) + (Math.hypot(38, 51) - Math.hypot(50, 36)) * swing;
+  let x = Math.cos(angle) * radius;
+  let z = Math.sin(angle) * radius;
+  const out = 50 / Math.max(Math.abs(x), Math.abs(z));
+  if (out > 1) {
+    x *= out;
+    z *= out;
+  }
+  return { p: [side * x, lerp(-1.2, -6), z], ipd: lerp(5.8, 4.2), shoulder: lerp(28, 20), maxHeight: lerp(42, 28), card: lerp(13, 10), size: lerp(30, 21), turn: 0.8 - 0.5 * swing };
+}
+
+/**
+ * The yaw that turns a cutout at (x, z) to a lens at (cx, cz), then `turn` of the rest of the way
+ * toward the table's middle.
+ */
+export function portraitYaw(cx: number, cz: number, x: number, z: number, turn: number): number {
+  const lens = Math.atan2(cx - x, cz - z);
+  const middle = Math.atan2(-x, -z);
+  let diff = middle - lens;
+  if (diff > Math.PI) diff -= 2 * Math.PI;
+  if (diff < -Math.PI) diff += 2 * Math.PI;
+  return lens + diff * turn;
 }
 
 /** Where the camera leans on an opponent's big moment: their chest, so the push-in keeps the table in view. */

@@ -41,6 +41,8 @@ export type ActionBarProps = {
   suggestion?: CoachSuggestion | null;
   /** A clock is running: keep each explanation's space reserved so nothing moves under a finger. */
   timed?: boolean;
+  /** One short row (a phone's 3D dock): each button keeps the coach's take/skip badge, not its reasons. */
+  compact?: boolean;
 };
 
 const sameTiles = (a: readonly number[], b: readonly number[]) => a.length === b.length && [...a].sort((x, y) => x - y).every((id, at) => id === [...b].sort((x, y) => x - y)[at]);
@@ -71,16 +73,18 @@ function riichiAdvice(advice: CallAdvice[], suggestion: CoachSuggestion | null |
   return { entry: picked, recommend };
 }
 
-function Why({ advice, recommend }: { advice: CallAdvice; recommend?: CallRecommend }) {
+function Why({ advice, recommend, compact }: { advice: CallAdvice; recommend?: CallRecommend; compact?: boolean }) {
   const lines = advice.effects.map((effect, at) => ({ at, text: effectText(effect) })).filter((line) => line.text);
   const rec = recommend ?? advice.recommend;
   return (
     <>
-      <ul className={coachStyles.why}>
-        {lines.map((line) => (
-          <li key={line.at}>{line.text}</li>
-        ))}
-      </ul>
+      {compact ? null : (
+        <ul className={coachStyles.why}>
+          {lines.map((line) => (
+            <li key={line.at}>{line.text}</li>
+          ))}
+        </ul>
+      )}
       {advice.option.type === "tsumo" || advice.option.type === "ron" ? null : RECOMMEND_TEXT[rec] ? (
         <span className={coachStyles.badge} data-rec={rec}>
           {RECOMMEND_TEXT[rec]}
@@ -128,7 +132,7 @@ function plan(options: Options): { kinds: Kind[]; choices: Partial<Record<Kind, 
 }
 
 /** The buttons for what you may do now. Several ways to call: pick the shape in a row under the buttons. */
-export function ActionBar({ options, waiting, busy, riichiMode, onRiichiMode, onAct, guide, advice, suggestion, timed }: ActionBarProps) {
+export function ActionBar({ options, waiting, busy, riichiMode, onRiichiMode, onAct, guide, advice, suggestion, timed, compact }: ActionBarProps) {
   const [choosing, setChoosing] = useState<Kind | null>(null);
   const { kinds, choices } = options ? plan(options) : { kinds: [] as Kind[], choices: {} as Partial<Record<Kind, Choice[]>> };
   const signature = options ? `${options.phase}:${kinds.join(",")}` : "none";
@@ -182,22 +186,22 @@ export function ActionBar({ options, waiting, busy, riichiMode, onRiichiMode, on
   // The explanation under one button: what it does, and the coach's lean.
   const whyOf = (kind: Kind) => {
     if (!coached || !advice) return null;
-    if (kind === "pass") return <p className={coachStyles.why}>Nothing changes. Play goes on.</p>;
-    if (kind === "kyuushu") return <p className={coachStyles.why}>Calls the hand off and deals again. Nobody pays.</p>;
+    if (kind === "pass") return compact ? null : <p className={coachStyles.why}>Nothing changes. Play goes on.</p>;
+    if (kind === "kyuushu") return compact ? null : <p className={coachStyles.why}>Calls the hand off and deals again. Nobody pays.</p>;
     if (kind === "tsumo" || kind === "ron") {
       const entry = adviceFor(advice, kind);
-      return entry ? <Why advice={entry} /> : null;
+      return entry ? <Why advice={entry} compact={compact} /> : null;
     }
     if (kind === "riichi") {
       const found = riichiAdvice(advice, suggestion);
-      return found ? <Why advice={found.entry} recommend={found.recommend} /> : null;
+      return found ? <Why advice={found.entry} recommend={found.recommend} compact={compact} /> : null;
     }
     const list = choices[kind] ?? [];
     if (list.length === 1) {
       const entry = adviceFor(advice, kind, list[0]);
-      return entry ? <Why advice={entry} /> : null;
+      return entry ? <Why advice={entry} compact={compact} /> : null;
     }
-    if (list.length > 1) return <p className={coachStyles.why}>{list.length} ways to do it: pick one below.</p>;
+    if (list.length > 1) return compact ? null : <p className={coachStyles.why}>{list.length} ways to do it: pick one below.</p>;
     return null;
   };
   const multi = (kind: Kind) => coached && (choices[kind]?.length ?? 0) > 1;
@@ -226,7 +230,7 @@ export function ActionBar({ options, waiting, busy, riichiMode, onRiichiMode, on
       <div className={coached ? coachStyles.callRow : styles.actionRow} role="group" aria-label="Your moves">
         {kinds.map((kind) =>
           coached ? (
-            <div key={kind} className={coachStyles.call} data-reserve={(timed && kind !== "pass" && kind !== "kyuushu") || undefined}>
+            <div key={kind} className={coachStyles.call} data-reserve={(timed && !compact && kind !== "pass" && kind !== "kyuushu") || undefined} data-compact={compact || undefined}>
               {button(kind)}
               {whyOf(kind)}
             </div>
@@ -246,7 +250,7 @@ export function ActionBar({ options, waiting, busy, riichiMode, onRiichiMode, on
                   {tiles}
                   {choice.tiles.length === 0 ? <span>{choice.label}</span> : null}
                 </span>
-                {entry ? <Why advice={entry} /> : null}
+                {entry ? <Why advice={entry} compact={compact} /> : null}
               </button>
             );
           })}

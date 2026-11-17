@@ -44,7 +44,7 @@ function Value({ info }: { info: YakuInfo }) {
     );
   return (
     <span className={styles.value}>
-      {info.closed} han closed · {info.open === null ? "closed only" : info.open === info.closed ? "same open" : `${info.open} open`}
+      {info.open === null ? `${info.closed} han · closed only` : info.open === info.closed ? `${info.closed} han · open or closed` : `${info.closed} han closed · ${info.open} open`}
     </span>
   );
 }

@@ -91,9 +91,11 @@ function Helpers({ improve }: { improve: { kind: TileKind; left: number }[] }) {
   );
 }
 
-function WinRows({ rows, closed, inRiichi, tsumoOnly }: { rows: WaitRow[]; closed: boolean; inRiichi: boolean; tsumoOnly?: boolean }) {
+/** `furiten`: no ron is possible now, so each wait says so instead of what a ron would score. */
+function WinRows({ rows, closed, inRiichi, tsumoOnly, furiten }: { rows: WaitRow[]; closed: boolean; inRiichi: boolean; tsumoOnly?: boolean; furiten?: boolean }) {
   const line = (label: string, preview: WinPreview | null, how: "ron" | "tsumo") => {
     if (!preview) return `${label}: not a winning tile`;
+    if (how === "ron" && furiten) return `${label}: not possible while furiten, only a self-draw wins`;
     if (preview.ok) return `${label}: ${previewScore(preview)}`;
     return `${label}: no yaku${how === "ron" && closed && !inRiichi ? " yet (declaring riichi adds one)" : ""}`;
   };
@@ -267,7 +269,7 @@ export function CoachContent({ hand, coach, selected, closed, inRiichi, who, myT
               <b>Not yet.</b> You’re not ready (tenpai) yet, so no tile can win. Keep building sets.
             </p>
           )}
-          {winRows && winRows.length ? <WinRows rows={winRows} closed={closed} inRiichi={inRiichi} tsumoOnly={complete} /> : null}
+          {winRows && winRows.length ? <WinRows rows={winRows} closed={closed} inRiichi={inRiichi} tsumoOnly={complete} furiten={blocked.some((block) => block.code.startsWith("furiten_"))} /> : null}
           <Sight coach={coach} />
         </section>
       ) : null}

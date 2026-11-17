@@ -97,16 +97,19 @@ export function frameTop(aspect: number, x: number, z: number): number {
 }
 
 /**
- * The rim's line across a figure standing at (x, z), square to the lens and `half` wide each way:
- * `center` where it crosses the middle (what the figure shows above the table is measured from here)
- * and `low` its lowest point, which a straight cut has to stay under to be hidden all the way across.
+ * The rim's line across a cutout standing at (x, z), turned to `yaw` and `half` wide each way: its
+ * height where it crosses the middle (what the figure shows above the table is measured from here),
+ * how it slopes along the cutout (height per unit to the cutout's right), its lowest point, and its
+ * highest a little past the edges, where the line levels off behind a corner. A cut along that line,
+ * just under it and never above its highest point, stays hidden all the way across.
  */
-export function rimLine(aspect: number, x: number, z: number, half: number): { center: number; low: number } {
-  const [cx, , cz] = basePose(aspect).position;
-  const length = Math.hypot(cx - x, cz - z) || 1;
-  const rx = (cz - z) / length;
-  const rz = -(cx - x) / length;
+export function rimLine(aspect: number, x: number, z: number, half: number, yaw: number): { center: number; slope: number; low: number; high: number } {
+  const rx = Math.cos(yaw);
+  const rz = -Math.sin(yaw);
+  const at = (k: number) => hiddenBelow(aspect, x + rx * half * k, z + rz * half * k);
   let low = Infinity;
-  for (const k of [-1, -0.5, 0, 0.5, 1]) low = Math.min(low, hiddenBelow(aspect, x + rx * half * k, z + rz * half * k));
-  return { center: hiddenBelow(aspect, x, z), low };
+  for (const k of [-1, -0.5, 0, 0.5, 1]) low = Math.min(low, at(k));
+  let high = -Infinity;
+  for (const k of [-1.5, -1, -0.5, 0, 0.5, 1, 1.5]) high = Math.max(high, at(k));
+  return { center: at(0), slope: (at(1) - at(-1)) / (2 * half), low, high };
 }
