@@ -1,19 +1,19 @@
 "use client";
 
 // The live table drawn as the 3D stage: the canvas (loaded lazily, browser only), the HTML over it
-// (nameplates, your plate, callouts, reactions, the end-of-hand reveal, your tile buttons) and a tray
-// under it for your moves. The table page decides when to use it; anything that goes wrong with WebGL
-// calls `onFail` and the page falls back to the flat board for the rest of the visit.
+// (nameplates, your plate, callouts, reactions and stamps, the end-of-hand reveal, your tile buttons)
+// and a tray under it for your moves. The table page decides when to use it; anything that goes wrong
+// with WebGL calls `onFail` and the page falls back to the flat board for the rest of the visit.
 
 import dynamic from "next/dynamic";
 import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CalloutLayer, type Callout } from "@/app/components/games/mahjong/table/board";
 import type { SeatStyle } from "@/app/components/games/mahjong/table/seat-portrait";
-import { liveStageModel, realSeat, type LiveMoment } from "@/app/components/games/mahjong/stage/live-model";
+import { liveStageModel, realSeat, stageSeat, type LiveMoment } from "@/app/components/games/mahjong/stage/live-model";
 import { useStageStore, type StageModel } from "@/app/components/games/mahjong/stage/model";
-import { Nameplate, SeatHud } from "@/app/components/games/mahjong/stage/stage-overlays";
+import { Nameplate, SeatHud, StampPop } from "@/app/components/games/mahjong/stage/stage-overlays";
 import { kindName, kindOf, tileName, type TileId } from "@/app/lib/games/mahjong/tiles";
-import type { GameView, MahjongTable, PublicHand, SeatHand, SeatIndex } from "@/app/lib/games/mahjong/types";
+import type { GameView, MahjongTable, PublicHand, SeatHand, SeatIndex, StampPose } from "@/app/lib/games/mahjong/types";
 import styles from "@/app/components/games/mahjong/stage/stage.module.scss";
 
 const StageCanvas = dynamic(() => import("@/app/components/games/mahjong/stage/stage-canvas"), {
@@ -146,6 +146,8 @@ export type LiveStageProps = {
   me: SeatIndex | null;
   seatStyles: SeatStyle[];
   callouts: Callout[];
+  /** Talent stamps showing now, by real seat (yours included); `at` sets a repeat apart. */
+  stamps?: Record<number, { pose: StampPose; at: number }>;
   floaters?: ReactNode;
   /** Drawn over the stage: the end-of-hand reveal. */
   overlay?: ReactNode;
@@ -158,7 +160,7 @@ export type LiveStageProps = {
   onFail: () => void;
 };
 
-export function LiveStage({ table, game, hand, bottom, me, seatStyles, callouts, floaters, overlay, hand3d, tray, day, reduced, onFail }: LiveStageProps) {
+export function LiveStage({ table, game, hand, bottom, me, seatStyles, callouts, stamps, floaters, overlay, hand3d, tray, day, reduced, onFail }: LiveStageProps) {
   const key = `${table.id}:${game.hand_index}`;
   const moment = useLiveMoment(hand, key);
   const colorKey = seatStyles.map((style) => style.color).join("|");
@@ -171,6 +173,8 @@ export function LiveStage({ table, game, hand, bottom, me, seatStyles, callouts,
   useLayoutEffect(() => setUi({ reduced }), [reduced, setUi]);
   useEffect(() => reset, [reset]);
   const held = useHeldOverlay(overlay, reduced);
+  const shown = Object.entries(stamps ?? {}).map(([real, stamp]) => ({ seat: stageSeat(Number(real), bottom), ...stamp }));
+  const mine = shown.find((stamp) => stamp.seat === 0);
 
   return (
     <div className={styles.live}>
@@ -183,9 +187,10 @@ export function LiveStage({ table, game, hand, bottom, me, seatStyles, callouts,
             <Nameplate key={realSeat(seat, bottom)} seat={seat} />
           ))}
         </div>
-        <SeatHud you={me !== null} />
+        <SeatHud you={me !== null}>{mine ? <StampPop key={mine.at} seat={0} pose={mine.pose} /> : null}</SeatHud>
         <TableSummary model={model} hand={hand} />
         <CalloutLayer callouts={callouts} bottom={bottom} />
+        {shown.map((stamp) => (stamp.seat !== 0 ? <StampPop key={`${stamp.seat}-${stamp.at}`} seat={stamp.seat} pose={stamp.pose} /> : null))}
         {floaters}
         {hand3d}
         {held}

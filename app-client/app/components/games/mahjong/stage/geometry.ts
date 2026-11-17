@@ -51,36 +51,27 @@ export const FLAT = -Math.PI / 2;
 export const HAND_LEAN = -0.42;
 
 /**
- * Where each opponent sits. `p` is the figure's anchor: the line the cutout is cropped at (its crop line,
- * for art with face metrics), placed just below the table's edge as the camera sees it so the crop
- * stays hidden and the head and shoulders rise above the rim. `ipd` is how far apart the eyes come out,
- * which sets every talent's head to one size (see scene-portraits); art without face metrics falls back
+ * Where each opponent sits. `p` is the figure's spot on the floor plan (its height is nominal: the
+ * portrait itself is placed by its eye line above the rim, see scene-portraits). `ipd` is how far apart
+ * the eyes come out, which sets every talent's head to one size; art without face metrics falls back
  * to `shoulder`, the width of the bottom of its figure, capped at `maxHeight` so a head never leaves the
- * frame. `card` is the width of the lit card a talent without half-body art gets. `size` is the nominal
- * figure height, for pinning overlays near the head. Side players sit behind their side of the table,
- * toward its far end so the lens takes them in; on narrower screens they swing round toward the far
- * corners (and further back on a phone) so all three fit across the top.
+ * frame. `shoulder` is also the width the rim has to hide the cut across. `card` is the width of the lit
+ * card a talent without half-body art gets. `size` is the nominal figure height, for pinning overlays
+ * near the head.
+ *
+ * All three sit behind the far rim, the side players toward its corners: from the chair the far rim
+ * runs level across the frame, so it hides every cut along one clean line. Behind a side rim the lens
+ * looks along the rim, which then crosses a figure on a steep slant, slicing the inner shoulder while
+ * the outer one hangs cut off in the air. A phone pulls the side players in and the one across back,
+ * so all three fit its narrow frame.
  */
 export type PortraitSpot = { p: Vec3; ipd: number; shoulder: number; maxHeight: number; card: number; size: number };
 
 export function portraitSpot(seat: number, narrow: number): PortraitSpot {
   const lerp = (a: number, b: number) => a + (b - a) * narrow;
   if (seat === 2) return { p: [0, lerp(-1.2, -5), lerp(-50.5, -60)], ipd: lerp(5.0, 4.4), shoulder: lerp(27, 20), maxHeight: lerp(40, 30), card: lerp(13, 10), size: lerp(30, 22) };
-  // Side players swing round from the middle of their side (landscape) to the far corner (phone): along
-  // an arc, pushed out so that in between they stay behind the rim rather than cutting across the felt.
-  // The swing leads the rest of the move, so a tablet's frame already has them tucked in from its edges.
   const side = seat === 1 ? 1 : -1;
-  const swing = Math.min(1, narrow * 1.35);
-  const angle = Math.atan2(-19, 49) + (Math.atan2(-50, 25) - Math.atan2(-19, 49)) * swing;
-  const radius = Math.hypot(49, 19) + (Math.hypot(25, 50) - Math.hypot(49, 19)) * swing;
-  let x = Math.cos(angle) * radius;
-  let z = Math.sin(angle) * radius;
-  const out = 48 / Math.max(Math.abs(x), Math.abs(z));
-  if (out > 1) {
-    x *= out;
-    z *= out;
-  }
-  return { p: [side * x, lerp(-1.2, -6), z], ipd: lerp(5.8, 4.2), shoulder: lerp(28, 20), maxHeight: lerp(42, 28), card: lerp(13, 10), size: lerp(30, 21) };
+  return { p: [side * lerp(36, 25), lerp(-1.2, -6), lerp(-49, -50)], ipd: lerp(6.2, 4.2), shoulder: lerp(26, 20), maxHeight: lerp(40, 28), card: lerp(13, 10), size: lerp(30, 21) };
 }
 
 /** Where the camera leans on an opponent's big moment: their chest, so the push-in keeps the table in view. */

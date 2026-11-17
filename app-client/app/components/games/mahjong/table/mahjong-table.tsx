@@ -186,14 +186,15 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
   }
 
   // ── Stamps ──────────────────────────────────────────────────────────
-  const [stamps, setStamps] = useState<Record<number, StampPose>>({});
+  // `at` tells a repeat of the same stamp from the one still showing, so it pops again.
+  const [stamps, setStamps] = useState<Record<number, { pose: StampPose; at: number }>>({});
   const stampTimers = useRef(new Map<number, number>());
   useEffect(() => {
     const timers = stampTimers.current;
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, []);
   const onStamp = useCallback((seat: number, pose: StampPose) => {
-    setStamps((current) => ({ ...current, [seat]: pose }));
+    setStamps((current) => ({ ...current, [seat]: { pose, at: performance.now() } }));
     const timers = stampTimers.current;
     const previous = timers.get(seat);
     if (previous) window.clearTimeout(previous);
@@ -337,7 +338,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
     const out: Record<number, ChibiPose> = {};
     ([0, 1, 2, 3] as SeatIndex[]).forEach((seat) => {
       const line = standingOf(standing, seat);
-      out[seat] = stamps[seat] ?? seatPose(seat, holdPose && hand ? { ...hand, result: null } : hand, line ? { place: line.place } : null);
+      out[seat] = stamps[seat]?.pose ?? seatPose(seat, holdPose && hand ? { ...hand, result: null } : hand, line ? { place: line.place } : null);
     });
     return out;
   }, [hand, holdPose, stamps, standing]);
@@ -690,6 +691,7 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
                   me={mySeat}
                   seatStyles={seatStyles}
                   callouts={callouts}
+                  stamps={stamps}
                   floaters={reactions.on ? <ReactionLayer stage={reactions.stage} /> : null}
                   overlay={reveal}
                   hand3d={handView}

@@ -20,6 +20,7 @@ import { useStageStore, type StageMeld, type StageModel } from "@/app/components
 import { handKey, overlayEls } from "@/app/components/games/mahjong/stage/overlay";
 import { handAnchor, type HandAnchor } from "@/app/components/games/mahjong/stage/rig";
 import { ATLAS, cellOf, tileAtlas } from "@/app/components/games/mahjong/stage/textures";
+import { fx } from "@/app/components/games/mahjong/stage/fx";
 
 type Zone = "hand" | "hidden" | "pond" | "meld" | "reveal" | "dora";
 type Target = Pose & { cell: number; zone: Zone; seat: number; delay?: number; glow?: number; mine?: TileId };
@@ -199,6 +200,14 @@ function spawnPose(target: Target, model: StageModel, anchor: HandAnchor): Pose 
 }
 
 // ── Material ─────────────────────────────────────────────────────────────────
+/**
+ * Where the tiles' front light comes from: low over your edge of the table. Your standing hand faces
+ * you, away from the lamp overhead; this lights its faces head on, while tiles lying flat catch it only
+ * at a grazing angle and keep the lamp's shading. It adds no highlight: a real light behind the lens
+ * would glare straight back off the glazed faces and wash out their ink.
+ */
+const FRONT_DIR = new THREE.Vector3(0, 18, 120).normalize();
+
 function tileMaterial(atlas: THREE.Texture, back: string) {
   const material = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.38, metalness: 0 });
   const uniforms = {
@@ -207,6 +216,14 @@ function tileMaterial(atlas: THREE.Texture, back: string) {
     uBack: { value: new THREE.Color(back) },
     uHalf: { value: new THREE.Vector3(TILE.w / 2, TILE.h / 2, TILE.d / 2) },
     uGlowColor: { value: new THREE.Color("#ffd27a") },
+    // Read at each draw: the lights set it every frame (fx.front), dimming it with the room.
+    uFront: {
+      get value() {
+        return fx.front;
+      },
+    },
+    uFrontColor: { value: new THREE.Color("#fff4e4") },
+    uFrontDir: { value: FRONT_DIR },
   };
   material.userData.uniforms = uniforms;
   material.onBeforeCompile = (shader) => {
@@ -242,6 +259,9 @@ function tileMaterial(atlas: THREE.Texture, back: string) {
         uniform vec3 uBack;
         uniform vec3 uHalf;
         uniform vec3 uGlowColor;
+        uniform float uFront;
+        uniform vec3 uFrontColor;
+        uniform vec3 uFrontDir;
         varying vec3 vObjPos;
         varying vec3 vObjNormal;
         varying float vCell;
@@ -276,12 +296,19 @@ function tileMaterial(atlas: THREE.Texture, back: string) {
         `
       )
       .replace(
+        "#include <lights_fragment_end>",
+        `#include <lights_fragment_end>
+        // The front light: diffuse only, so it brightens the faces without a glare toward the lens.
+        float frontNL = max(dot(normal, normalize((viewMatrix * vec4(uFrontDir, 0.0)).xyz)), 0.0);
+        reflectedLight.directDiffuse += uFront * frontNL * uFrontColor * BRDF_Lambert(material.diffuseColor);`
+      )
+      .replace(
         "#include <emissivemap_fragment>",
         `#include <emissivemap_fragment>
         totalEmissiveRadiance += vGlow * uGlowColor * 0.55;`
       );
   };
-  material.customProgramCacheKey = () => "stage-tile-v4";
+  material.customProgramCacheKey = () => "stage-tile-v5";
   return material;
 }
 

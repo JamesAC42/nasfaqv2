@@ -1,10 +1,10 @@
-// DOM overlays pinned to points in the 3D scene (nameplates, cheer chips). The DOM side registers its
-// elements here; the canvas projects each anchor every frame and writes the transform directly, so
-// the text stays crisp HTML and React never re-renders for it.
+// DOM overlays pinned to points in the 3D scene (nameplates, cheer chips, talent stamps). The DOM side
+// registers its elements here; the canvas projects each anchor every frame and writes the transform
+// directly, so the text stays crisp HTML and React never re-renders for it.
 
 import { portraitSpot, TABLE, type Vec3 } from "@/app/components/games/mahjong/stage/geometry";
 
-export type AnchorKind = "plate" | "cheer";
+export type AnchorKind = "plate" | "cheer" | "stamp";
 
 export const overlayEls = new Map<string, HTMLElement>();
 export const anchorKey = (kind: AnchorKind, seat: number) => `${kind}-${seat}`;
@@ -34,9 +34,12 @@ export function anchorWorld(kind: AnchorKind, seat: number, narrow: number): Vec
     // side players' plates drop a row onto the felt to clear the middle one.
     if (seat === 2) return [0, TABLE.lip + 0.6, -TABLE.rim];
     if (narrow > 0.5) return [spot.p[0], TABLE.lip + 0.6, -TABLE.rim + 7];
-    // Side players: on the rim a little nearer you than they sit, clear of the chin.
-    return [Math.sign(spot.p[0]) * (TABLE.rim + 1), TABLE.lip + 0.6, spot.p[2] + 15];
+    // Side players: on their side of the rim, in front of their hand and clear of the plate across.
+    return [Math.sign(spot.p[0]) * (TABLE.rim + 1), TABLE.lip + 0.6, -22];
   }
+  // A stamp sits on the rim's line in front of the figure that sent it, over the chest and clear of
+  // the face: the three sit close together, and above a head is off the top of a wide frame.
+  if (kind === "stamp") return [spot.p[0], TABLE.lip - 2, spot.p[2]];
   // Cheers float up beside the portrait's head, on the side toward the middle of the screen.
   // On a phone the three sit in a row, so cheers rise from above each head instead.
   if (narrow > 0.5 && seat === 2) return [spot.p[0] + spot.shoulder * 0.45, spot.p[1] + spot.size * 0.95, spot.p[2]];

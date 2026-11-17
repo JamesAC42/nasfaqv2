@@ -65,12 +65,13 @@ const LAMP: Vec3 = [0, 96, 4];
 /**
  * Light levels, chosen with ACES tone mapping at EXPOSURE so the ivory tile faces read as ivory with
  * visible shading rather than clipping to white: by day soft daylight from the room plus the lamp, by
- * night a warm lamp pool in a cool dark room.
+ * night a warm lamp pool in a cool dark room. `front` is the tiles' own low light from your side of the
+ * table (scene-tiles): your standing hand faces you, away from the lamp, and would read gray without it.
  */
 const EXPOSURE = 0.92;
 const LEVELS = {
-  day: { pendant: 1.35, hemi: 0.42, fill: 0.2, env: 0.2, spot: 4.2, beam: 0.42, pool: 0.3, sky: "#c9b998", backdrop: 0.66 },
-  night: { pendant: 3.5, hemi: 0.36, fill: 0.34, env: 0.2, spot: 6.2, beam: 0.8, pool: 0.42, sky: "#04060b", backdrop: 0.9 },
+  day: { pendant: 1.35, hemi: 0.42, fill: 0.2, front: 1.9, env: 0.2, spot: 4.2, beam: 0.42, pool: 0.3, sky: "#c9b998", backdrop: 0.66 },
+  night: { pendant: 3.5, hemi: 0.36, fill: 0.34, front: 2.1, env: 0.2, spot: 6.2, beam: 0.8, pool: 0.42, sky: "#04060b", backdrop: 0.9 },
 } as const;
 /** Where the win spotlight hangs: high above the far side, so its beam slants across the frame. */
 const SPOT_FROM: Vec3 = [0, 125, -30];
@@ -182,6 +183,8 @@ function Lights({ day }: { day: boolean }) {
     if (pendant.current) pendant.current.intensity = lv.pendant * (0.25 + 0.75 * l.room);
     if (hemi.current) hemi.current.intensity = lv.hemi * (0.3 + 0.7 * l.room);
     if (fill.current) fill.current.intensity = lv.fill * l.room;
+    // Your hand dims less than the room, so it stays readable through a big moment.
+    fx.front = lv.front * (0.4 + 0.6 * l.room);
     if (spot.current) {
       spot.current.intensity = l.spot * lv.spot;
       spotTarget.position.copy(l.aim);
@@ -368,7 +371,7 @@ function CameraRig() {
     camera.updateMatrixWorld();
 
     // Pin the DOM overlays.
-    for (const kind of ["plate", "cheer"] as const) {
+    for (const kind of ["plate", "cheer", "stamp"] as const) {
       for (let seat = 0; seat < 4; seat++) {
         const el = overlayEls.get(anchorKey(kind, seat));
         if (!el) continue;

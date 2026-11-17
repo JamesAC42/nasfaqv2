@@ -82,3 +82,31 @@ export function hiddenBelow(aspect: number, x: number, z: number): number {
   if (!Number.isFinite(exit) || exit <= 0 || exit >= 1) return -2;
   return cy + (TABLE.lip - cy) / exit;
 }
+
+/** How high a point at (x, z) can be and still be inside the top of the resting camera's frame. */
+export function frameTop(aspect: number, x: number, z: number): number {
+  const pose = basePose(aspect);
+  const cam = new THREE.Vector3(...pose.position);
+  const forward = new THREE.Vector3(...pose.target).sub(cam).normalize();
+  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+  const up = new THREE.Vector3().crossVectors(right, forward);
+  const half = THREE.MathUtils.degToRad(pose.fov / 2);
+  // The top plane of the frustum, by its outward normal: the point sits on it where the dot is zero.
+  const normal = up.multiplyScalar(Math.cos(half)).addScaledVector(forward, -Math.sin(half));
+  return cam.y - (normal.x * (x - cam.x) + normal.z * (z - cam.z)) / normal.y;
+}
+
+/**
+ * The rim's line across a figure standing at (x, z), square to the lens and `half` wide each way:
+ * `center` where it crosses the middle (what the figure shows above the table is measured from here)
+ * and `low` its lowest point, which a straight cut has to stay under to be hidden all the way across.
+ */
+export function rimLine(aspect: number, x: number, z: number, half: number): { center: number; low: number } {
+  const [cx, , cz] = basePose(aspect).position;
+  const length = Math.hypot(cx - x, cz - z) || 1;
+  const rx = (cz - z) / length;
+  const rz = -(cx - x) / length;
+  let low = Infinity;
+  for (const k of [-1, -0.5, 0, 0.5, 1]) low = Math.min(low, hiddenBelow(aspect, x + rx * half * k, z + rz * half * k));
+  return { center: hiddenBelow(aspect, x, z), low };
+}

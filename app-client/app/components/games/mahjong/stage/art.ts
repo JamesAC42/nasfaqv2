@@ -10,20 +10,16 @@ const BASE = (process.env.NEXT_PUBLIC_MAHJONG_ART_BASE || "/art/_overlay/mahjong
  * Where the face sits in a talent's set (every mood is drawn to the same framing), as fractions of the
  * image: `eyeY` the eye line from the top, `ipd` the distance between the pupils over the image's width.
  * The stage scales each figure so the eyes come out the same distance apart (one head size for
- * everyone, whatever the hair, ears or hood add). Measured by hand on the 768x1024 exports: the outline
+ * everyone, whatever the hair, ears or hood add) and places it by the eye line, so every talent shows
+ * the same stretch of body above the table's rim. Measured by hand on the 768x1024 exports: the outline
  * alone can't tell a head from the ears, hood or hat above it.
- *
- * `crop` is the line (from the top) the figure is cut at, which sits just behind the table's rim: by
- * default mid-chest, so the shoulders and upper body show above the table. Set it higher only where the
- * art needs it, e.g. at a collar so a low neckline never shows.
  */
-export type FaceMetrics = { eyeY: number; ipd: number; crop?: number };
+export type FaceMetrics = { eyeY: number; ipd: number };
 
 const HALF_BODY: Record<string, FaceMetrics> = {
-  // Cut at the fur collar: her dress is strapless, and its neckline must stay below the rim.
-  PEK: { eyeY: 462 / 1024, ipd: 123 / 768, crop: 751 / 1024 },
-  GUR: { eyeY: 390 / 1024, ipd: 135 / 768, crop: 870 / 1024 },
-  SUI: { eyeY: 390 / 1024, ipd: 112 / 768, crop: 845 / 1024 },
+  PEK: { eyeY: 462 / 1024, ipd: 123 / 768 },
+  GUR: { eyeY: 390 / 1024, ipd: 135 / 768 },
+  SUI: { eyeY: 390 / 1024, ipd: 112 / 768 },
 };
 
 export const hasPortraitArt = (symbol: string | null | undefined): symbol is string => Boolean(symbol && Object.hasOwn(HALF_BODY, symbol));

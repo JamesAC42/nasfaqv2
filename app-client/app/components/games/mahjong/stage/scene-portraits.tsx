@@ -1,11 +1,12 @@
 "use client";
 
-// The three opponents as camera-facing cutouts seated behind their side of the table: each seat's
+// The three opponents as camera-facing cutouts seated behind the far side of the table: each seat's
 // talent, in the mood the hand puts them in (think on their turn, riichi when they declare, win when
 // they win). Half-body art with face metrics (art.ts) is scaled so the eyes come out the same distance
-// apart for every talent, and cut at its crop line (mid-chest unless the art says otherwise): that line
-// sits on the seat's anchor, just below the table's edge, and nothing under it is ever drawn. Lit by the lamp from the table side,
-// with a thin rim of the seat's color on the far edge; a mood change cross-fades between images.
+// apart for every talent and placed by its eye line, SHOW eye distances above the rim as the lens sees
+// it, so everyone shows the same stretch of body over the table whatever the framing of their art. It
+// is cut just under the rim's line, and nothing under the cut is ever drawn. Lit by the lamp from the
+// table side, with a thin rim of the seat's color on the far edge; a mood change cross-fades between images.
 // A talent without half-body art gets a lit card with their reaction art (or their ticker, if that
 // can't be loaded); while an image loads a plain silhouette stands in.
 
@@ -15,15 +16,15 @@ import * as THREE from "three";
 import { faceMetrics, portraitUrl, type FaceMetrics } from "@/app/components/games/mahjong/stage/art";
 import { portraitSpot } from "@/app/components/games/mahjong/stage/geometry";
 import { useStageStore, type Mood } from "@/app/components/games/mahjong/stage/model";
-import { hiddenBelow, narrowness } from "@/app/components/games/mahjong/stage/rig";
+import { frameTop, narrowness, rimLine } from "@/app/components/games/mahjong/stage/rig";
 import { fx } from "@/app/components/games/mahjong/stage/fx";
 import { radialTexture, silhouetteTexture } from "@/app/components/games/mahjong/stage/textures";
 import { artId, lookupArt, textureArtUrl, type ChibiPose } from "@/app/lib/art-manifest";
 import { useArtStore } from "@/app/stores/art-store";
 
 const MOODS: Mood[] = ["idle", "think", "riichi", "win"];
-/** Where art without its own crop line is cut: this many eye distances under the eyes, about mid-chest. */
-const MID_CHEST = 3.7;
+/** How far above the rim's line the eyes sit, in eye distances: head, shoulders and the upper chest show. */
+const SHOW = 3.4;
 
 const vertex = /* glsl */ `
   uniform float uTime;
@@ -274,6 +275,12 @@ function usePortraitTextures(symbol: string | null, name: string, color: string,
           texture.colorSpace = THREE.SRGBColorSpace;
           texture.anisotropy = 4;
           if (holder.disposed) return texture.dispose();
+          // Where the figure's top is (ears, hat, hood), so a tall one can be kept inside the frame.
+          try {
+            texture.userData.fit = measure(texture.image as HTMLImageElement);
+          } catch {
+            texture.userData.fit = null;
+          }
           loaded[mood] = texture;
           invalidate();
         },
@@ -328,8 +335,11 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
   const halo = useMemo(() => radialTexture(0.05, 1.3), []);
   useEffect(() => () => halo.dispose(), [halo]);
   const spot = portraitSpot(seat, narrowness(aspect));
-  // The crop line sits just under where the rim stops hiding things from the lens.
-  const anchorY = Math.min(spot.p[1] + 2, hiddenBelow(aspect, spot.p[0], spot.p[2]) - 0.9);
+  // The group's origin is the cut: just under the rim's line all the way across the figure.
+  const rim = rimLine(aspect, spot.p[0], spot.p[2], spot.shoulder / 2);
+  const anchorY = rim.low - 0.9;
+  // The highest the figure may reach and stay in the frame, a little under its top edge.
+  const ceiling = frameTop(aspect, spot.p[0], spot.p[2]) - 1.5 - anchorY;
   const outer = seat === 1 ? 1 : seat === 3 ? -1 : 0;
 
   const material = useMemo(
@@ -398,14 +408,29 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
     if (textures.face && b !== textures.fallback && image?.width && image.height) {
       const face = textures.face;
       const imageAspect = image.width / image.height;
-      const width = spot.ipd / face.ipd;
-      const height = width / imageAspect;
-      const cropTop = Math.min(0.98, face.crop ?? face.eyeY + MID_CHEST * face.ipd * imageAspect);
-      const cropV = 1 - cropTop;
+      let width = spot.ipd / face.ipd;
+      let height = width / imageAspect;
+      // The eye line SHOW eye distances over the rim's line at the figure's middle; the cut (the group's
+      // origin) lands wherever that falls in the image.
+      const line = rim.center - anchorY;
+      let eye = line + SHOW * spot.ipd;
+      let y = eye - (0.5 - face.eyeY) * height;
+      // Tall art (long ears, a crown) that would leave the top of the frame comes out a little
+      // smaller instead, scaled about the rim's line so it still shows the same stretch of body.
+      const fit = (b.userData.fit as Fit | null | undefined) ?? null;
+      const top = y + height * ((fit ? fit.bottom + fit.height : 1) - 0.5);
+      if (top > ceiling && top > line) {
+        const k = Math.max(0.6, (ceiling - line) / (top - line));
+        width *= k;
+        height *= k;
+        eye = line + (eye - line) * k;
+        y = eye - (0.5 - face.eyeY) * height;
+      }
+      const cutV = Math.max(0, 0.5 - y / height);
       mesh.scale.set(width, height, 1);
-      mesh.position.set(0, height * (0.5 - cropV), 0);
-      u.uCut.value.set(cropV, 0.035);
-      figure = height * cropTop * 0.92;
+      mesh.position.set(0, y, 0);
+      u.uCut.value.set(cutV, 0.035);
+      figure = height * (1 - cutV) * 0.92;
     } else if (textures.card && b !== textures.fallback) {
       const width = spot.card;
       const height = (width * CARD_H) / CARD_W;
