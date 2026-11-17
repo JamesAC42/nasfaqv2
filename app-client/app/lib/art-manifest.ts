@@ -26,6 +26,11 @@ export type ArtAnchors = {
   cut_y?: number;
   /** Width of the opaque figure as a fraction of the image width. */
   span?: number;
+  /**
+   * Distance between the pupils as a fraction of the image width. The 3D mahjong table's half-body
+   * portraits (`SYM/half/<mood>`) carry it with `eye_y`, to size every talent to one head size.
+   */
+  ipd?: number;
 };
 
 export type ArtImage = {

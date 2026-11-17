@@ -2,19 +2,19 @@
 
 // The three opponents as cutouts facing the lens, seated behind their side of the table: each seat's
 // talent, in the mood the hand puts them in (think on their turn, riichi when they declare, win when
-// they win). Half-body art with face metrics (art.ts) is scaled so the eyes come out the same distance
+// they win). Half-body art from the art manifest, with face metrics (art.ts), is scaled so the eyes come out the same distance
 // apart for every talent and placed by its eye line, SHOW eye distances above the rim as the lens sees
 // it, so everyone shows the same stretch of body over the table whatever the framing of their art. It
 // is cut just under the rim's line (on its slant at the sides), and nothing under the cut is ever
 // drawn. Lit by the lamp from the table side, with a thin rim of the seat's color on the far edge; a
 // mood change cross-fades between images.
 // A talent without half-body art gets a lit card with their reaction art (or their ticker, if that
-// can't be loaded); while an image loads a plain silhouette stands in.
+// can't be loaded); while the manifest or an image loads a plain silhouette stands in.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { faceMetrics, portraitUrl, type FaceMetrics } from "@/app/components/games/mahjong/stage/art";
+import { PORTRAIT_PENDING, portraitArt, type FaceMetrics } from "@/app/components/games/mahjong/stage/art";
 import { portraitSpot, portraitYaw } from "@/app/components/games/mahjong/stage/geometry";
 import { useStageStore, type Mood } from "@/app/components/games/mahjong/stage/model";
 import { basePose, frameTop, narrowness, rimLine } from "@/app/components/games/mahjong/stage/rig";
@@ -248,19 +248,25 @@ function disposeAll(textures: Iterable<THREE.Texture | undefined>) {
 }
 
 /**
- * The four moods' images; until one has loaded (or if it never does) the silhouette stands in. Half-body
- * art depends on the talent alone, so a theme change or new seat colors never reload it; only the
- * cards (drawn in the seat's color) are redrawn.
+ * The four moods' images; until one has loaded (or if it never does) the silhouette stands in. Until the
+ * manifest has settled nothing is requested and the silhouette stands in too, so a seat goes silhouette
+ * then portrait (or card) without a card flashing first. Half-body art depends on the talent alone, so
+ * a theme change or new seat colors never reload it; only the cards (drawn in the seat's color) are
+ * redrawn.
  */
 function usePortraitTextures(symbol: string | null, name: string, color: string, invalidate: () => void): PortraitSet {
   const ensureArt = useArtStore((s) => s.ensureLoaded);
+  const manifest = useArtStore((s) => s.manifest);
+  const settled = useArtStore((s) => s.status === "ready" || s.status === "missing");
+  useEffect(() => ensureArt(), [ensureArt]);
   // Listed art that can't be loaded (not deployed yet, or a host without CORS) falls back to the card.
   const [missing, setMissing] = useState<string | null>(null);
-  const face = missing === symbol ? null : faceMetrics(symbol);
-  const manifestReady = useArtStore((s) => s.manifest !== null);
-  useEffect(() => {
-    if (!face) ensureArt();
-  }, [face, ensureArt]);
+  const resolved = portraitArt(manifest, settled, symbol);
+  const pending = resolved === PORTRAIT_PENDING;
+  // The same object for the same files (art.ts caches it), so the texture memo below reloads only when the files change.
+  const art = pending || missing === symbol ? null : resolved;
+  const face = art?.face ?? null;
+  const manifestReady = manifest !== null;
 
   const fallback = useMemo(() => {
     const texture = silhouetteTexture();
@@ -271,10 +277,9 @@ function usePortraitTextures(symbol: string | null, name: string, color: string,
   const half = useMemo(() => {
     const loaded: Partial<Record<Mood, THREE.Texture>> = {};
     const holder = { disposed: false };
-    if (!face) return { loaded, holder };
+    if (!art) return { loaded, holder };
     for (const mood of MOODS) {
-      const url = portraitUrl(symbol, mood);
-      if (!url) continue;
+      const url = art.urls[mood];
       new THREE.TextureLoader().load(
         url,
         (texture) => {
@@ -298,7 +303,7 @@ function usePortraitTextures(symbol: string | null, name: string, color: string,
       );
     }
     return { loaded, holder };
-  }, [symbol, face, invalidate]);
+  }, [symbol, art, invalidate]);
   useEffect(
     () => () => {
       half.holder.disposed = true;
@@ -309,7 +314,7 @@ function usePortraitTextures(symbol: string | null, name: string, color: string,
 
   const cards = useMemo(() => {
     const loaded: Partial<Record<Mood, THREE.Texture>> = {};
-    if (face) return loaded;
+    if (art || pending) return loaded;
     const label = symbol ?? (name.trim().slice(0, 1).toUpperCase() || "?");
     const byPose = new Map<ChibiPose, THREE.Texture>();
     for (const mood of MOODS) {
@@ -320,10 +325,10 @@ function usePortraitTextures(symbol: string | null, name: string, color: string,
     return loaded;
     // The manifest arriving redraws the cards with the reaction art.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol, face, name, color, manifestReady, invalidate]);
+  }, [symbol, art, pending, name, color, manifestReady, invalidate]);
   useEffect(() => () => disposeAll(Object.values(cards)), [cards]);
 
-  return { fallback: fallback.texture, fallbackFit: fallback.fit, loaded: face ? half.loaded : cards, face, card: !face };
+  return { fallback: fallback.texture, fallbackFit: fallback.fit, loaded: art ? half.loaded : cards, face, card: !art && !pending };
 }
 
 const pick = (set: PortraitSet, mood: Mood) => set.loaded[mood] ?? set.loaded.idle ?? set.fallback;
