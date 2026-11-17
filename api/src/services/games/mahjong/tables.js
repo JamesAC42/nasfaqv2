@@ -41,7 +41,7 @@ const tutorial = require("./tutorial");
 const view = require("./view");
 const { buildWall, newSeed } = require("./wall");
 const { kindOf } = require("./tiles");
-const { SETTINGS, SPEEDS, chipResults, stakesPrizeTable } = require("./settings");
+const { SETTINGS, SPEEDS, chipResults, seatableTalents, stakesPrizeTable } = require("./settings");
 
 const SEATS = 4;
 // Unrecorded tables take ids far above anything the database hands out (and within the hub's 12 digits).
@@ -115,6 +115,7 @@ function newToken() {
 /** A talent for a seat: the player's oshi, else one picked by who they are; never one already at the table. */
 function talentFor(table, wanted, salt, { bot = false } = {}) {
   const taken = new Set(table.seats.filter(Boolean).map((seat) => seat.talent));
+  if (wanted && SETTINGS.excludedTalents.includes(wanted)) wanted = null; // an oshi no seat may take
   if (wanted && !taken.has(wanted)) return wanted;
   const open = talentSymbols.filter((symbol) => !taken.has(symbol));
   // Bots sit as a talent with 3D table art while one is free (SETTINGS.botTalents).
@@ -1397,12 +1398,12 @@ async function init(db, { onTableOver = null } = {}) {
   overListener = onTableOver;
   const cancelled = await records.cancelUnfinishedGames(pool);
   if (cancelled) console.log(`games: cancelled ${cancelled} unfinished mahjong game(s) from before restart`);
-  talentSymbols = await records.listTalentSymbols(pool);
+  talentSymbols = seatableTalents(await records.listTalentSymbols(pool));
   const refresh = setInterval(() => {
     records
       .listTalentSymbols(pool)
       .then((symbols) => {
-        if (symbols.length) talentSymbols = symbols;
+        if (symbols.length) talentSymbols = seatableTalents(symbols);
       })
       .catch(() => {});
   }, 30 * 60_000);
@@ -1523,7 +1524,7 @@ module.exports = {
   _tick: tick,
   _setTalentsForTests: (symbols) => {
     const before = talentSymbols;
-    talentSymbols = [...symbols];
+    talentSymbols = seatableTalents(symbols);
     return () => {
       talentSymbols = before;
     };

@@ -51,6 +51,17 @@ const SETTINGS = Object.freeze({
       .filter(Boolean),
   ),
 
+  /**
+   * Talents never seated at a mahjong table, even as someone's oshi: FuwaMoco are two people, which
+   * doesn't fit one seat. MAHJONG_EXCLUDED_TALENTS, comma-separated tickers.
+   */
+  excludedTalents: Object.freeze(
+    String(process.env.MAHJONG_EXCLUDED_TALENTS ?? "BYS")
+      .split(",")
+      .map((part) => part.trim().toUpperCase())
+      .filter(Boolean),
+  ),
+
   // ── Money ────────────────────────────────────────────────────────────────
   /**
    * Entry fees for stakes tables, in Credit. The median player holds about $91,000 Credit and can
@@ -171,4 +182,7 @@ function publicRules() {
   };
 }
 
-module.exports = { RANKED_AFTER_GAMES, RANKS, SETTINGS, SPEEDS, chipResults, publicRules, rankFor, setTrialForTests, stakesPrizeTable, tournamentPrizeTable };
+/** The listed talents a mahjong seat may take: everyone but SETTINGS.excludedTalents. */
+const seatableTalents = (symbols) => symbols.filter((symbol) => !SETTINGS.excludedTalents.includes(symbol));
+
+module.exports = { RANKED_AFTER_GAMES, RANKS, SETTINGS, SPEEDS, chipResults, publicRules, rankFor, seatableTalents, setTrialForTests, stakesPrizeTable, tournamentPrizeTable };
