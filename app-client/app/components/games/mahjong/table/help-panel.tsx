@@ -6,7 +6,7 @@ import { EasyPatterns } from "@/app/components/games/mahjong/learn/easy-patterns
 import { Tile, TileRow } from "@/app/components/games/mahjong/tile";
 import { kindName, kindOf, type TileId } from "@/app/lib/games/mahjong/tiles";
 import type { FuritenReason, SeatHand, WaitInfo, WinPreview } from "@/app/lib/games/mahjong/types";
-import { NO_WIN_REASONS, scoreText, yakuName } from "@/app/lib/games/mahjong/yaku";
+import { NO_WIN_REASONS, scoreText, yakumanOf, yakuName } from "@/app/lib/games/mahjong/yaku";
 import styles from "@/app/components/games/mahjong/table/table-panels.module.scss";
 
 const FURITEN_TEXT: Record<FuritenReason, string> = {
@@ -18,7 +18,7 @@ const FURITEN_TEXT: Record<FuritenReason, string> = {
 function previewText(label: string, preview: WinPreview | null) {
   if (!preview) return `${label}: –`;
   if (!preview.ok) return `${label}: needs a yaku`;
-  return `${label}: ${scoreText({ han: preview.han, fu: preview.fu, limit: preview.limit, yakuman: 0 })}`;
+  return `${label}: ${scoreText({ han: preview.han, fu: preview.fu, limit: preview.limit, yakuman: yakumanOf(preview.limit, preview.han) })}`;
 }
 
 function Waits({ waits }: { waits: WaitInfo[] }) {

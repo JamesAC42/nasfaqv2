@@ -157,7 +157,7 @@ export function RulesPage() {
             <b>Four kans.</b> A fifth kan is never allowed. If the four belong to more than one player, the hand is an abortive draw once the fourth kan’s discard goes by.
           </li>
           <li>
-            <b>Robbing a kan.</b> You can win on the tile someone adds to a pon to make a kan (chankan). A closed kan can’t be robbed, not even for thirteen orphans.
+            <b>Robbing a kan.</b> You can win on the tile someone adds to a pon to make a kan (chankan). A closed kan can be robbed only by thirteen orphans waiting on that tile; then the kan never happens.
           </li>
           <li>
             <b>Kan in riichi.</b> Only a closed kan of the tile you just drew, and only when it doesn’t change what the hand waits on or how it reads.
@@ -243,8 +243,8 @@ export function RulesPage() {
         </Picture>
         <h3>Several winners</h3>
         <p>
-          If two or three players win on the same discard, every one of them is paid. There is no head bump, and no draw for three. Each gets the honba bonus, and the riichi sticks on the table go to the winner who is next in
-          turn after the discarder.
+          If two players win on the same discard, both are paid. There is no head bump. Each gets the honba bonus, and the riichi sticks on the table go to the winner who is next in turn after the discarder. If three players
+          win on it, the hand is an abortive draw instead: nobody is paid.
         </p>
         <h3>Responsibility</h3>
         <p>
@@ -264,7 +264,7 @@ export function RulesPage() {
           </li>
           <li>
             <b>Abortive draws.</b> Nine different terminals and honors in your first draw with no calls before it (your choice); the same wind discarded by all four on the first go-around; all four in riichi; four kans by more
-            than one player. No points move; the dealer stays and a counter is added.
+            than one player; three players winning on the same tile. No points move and riichi sticks stay on the table; the dealer stays and a counter is added.
           </li>
         </ul>
         <Picture
@@ -278,7 +278,8 @@ export function RulesPage() {
       <Section id="scoring" title="Yaku and scoring">
         <p>
           The patterns are on <Link href="/games/mahjong/learn/yaku">the yaku page</Link>, each with its han open and closed. Open hands lose one han where marked, and can’t use the ones marked closed. Every yakuman is worth
-          one limit, and different yakuman in one hand add up. There are no double yakuman for special waits. 13 han or more from ordinary yaku and dora counts as a yakuman (kazoe). Not used: renhou, open riichi, local yaku,
+          one limit, except four that are worth two (double yakuman): thirteen orphans on the thirteen-sided wait, four concealed triplets on the single wait, pure nine gates (the nine-sided wait), and big four winds.
+          Different yakuman in one hand add up. 13 han or more from ordinary yaku and dora counts as one yakuman (kazoe). Not used: renhou, open riichi, local yaku,
           and rounding 4 han 30 fu up to mangan.
         </p>
         <h3>Fu</h3>

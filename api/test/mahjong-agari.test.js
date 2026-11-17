@@ -80,12 +80,19 @@ function expectNoYaku(result) {
 }
 
 /** A yakuman hand: exactly these yakuman, one limit each. */
+// Double yakuman (rule sheet: Yaku): the thirteen-sided thirteen orphans, four concealed triplets on
+// the single wait, pure nine gates, and big four winds. Every other yakuman is one limit.
+const DOUBLES = new Set(["kokushi-13", "suuankou-tanki", "chuuren-pure", "daisuushii"]);
+
 function expectYakuman(result, keys) {
   assert.ok(result, "the hand should be a winning shape");
   assert.equal(result.noYaku, false);
   assert.deepEqual(result.yaku.map((entry) => entry.key).sort(), [...keys].sort());
-  assert.equal(result.yakuman, keys.length, "yakuman count");
-  assert.equal(result.base, 8000 * keys.length, "base points");
+  const limits = keys.reduce((sum, key) => sum + (DOUBLES.has(key) ? 2 : 1), 0);
+  for (const entry of result.yaku) assert.equal(entry.han, DOUBLES.has(entry.key) ? 26 : 13, `han for ${entry.key}`);
+  assert.equal(result.yakuman, limits, "yakuman count");
+  assert.equal(result.han, 13 * limits, "han");
+  assert.equal(result.base, 8000 * limits, "base points");
   assert.equal(result.limit, "yakuman");
 }
 
@@ -615,31 +622,50 @@ test("yaku add up: riichi, pinfu, all simples, mixed triple sequence, pure doubl
 
 // ── 2. Yakuman ─────────────────────────────────────────────────────────────
 
-test("yakuman: thirteen orphans (19m 19p 19s 1234567z and a second 7z)", () => {
-  const result = win("19m 19p 19s 12345677z", "7z");
+test("yakuman: thirteen orphans on a single wait (19m 19p 19s 123456z 77z, waiting on 1m)", () => {
+  // Before the 1m the hand held 9m 19p 19s 1234567z and a second 7z: twelve kinds and a pair, one wait.
+  const result = win("19m 19p 19s 12345677z", "1m");
   expectYakuman(result, ["kokushi"]);
   assert.equal(result.form, "orphans");
+  assert.equal(result.base, 8000);
   expectYakuman(win("19m 19p 19s 12345677z", "1m", { tsumo: true }), ["kokushi"]);
+  // Twelve kinds and a pair of 1m, waiting on the 7z it lacks: still the single wait.
+  expectYakuman(win("119m 19p 19s 1234567z", "7z"), ["kokushi"]);
 });
 
-test("yakuman: thirteen orphans on the thirteen-sided wait is still one limit", () => {
-  expectYakuman(win("119m 19p 19s 1234567z", "1m"), ["kokushi"]);
+test("double yakuman: thirteen orphans on the thirteen-sided wait (all thirteen kinds before the 7z)", () => {
+  // Before the win: 19m 19p 19s 1234567z, one of each, waiting on any of the thirteen.
+  const result = win("19m 19p 19s 12345677z", "7z");
+  expectYakuman(result, ["kokushi-13"]);
+  assert.equal(result.form, "orphans");
+  assert.equal(result.base, 16000);
+  expectYakuman(win("119m 19p 19s 1234567z", "1m"), ["kokushi-13"]);
+  expectYakuman(win("19m 19p 199s 1234567z", "9s", { tsumo: true }), ["kokushi-13"]);
 });
 
 test("yakuman: twelve orphans and two pairs is nothing (no 7z)", () => {
   assert.equal(win("119m 19p 19s 1234566z", "6z"), null);
 });
 
-test("yakuman: four concealed triplets on the single wait, by discard (222m 444p 666s 888s 55m)", () => {
-  expectYakuman(win("22255m 444p 666888s", "5m"), ["suuankou"]);
+test("double yakuman: four concealed triplets on the single wait, by discard (222m 444p 666s 888s, 5m to 55m)", () => {
+  const result = win("22255m 444p 666888s", "5m");
+  expectYakuman(result, ["suuankou-tanki"]);
+  assert.equal(result.wait, "tanki");
+  assert.equal(result.base, 16000);
+  expectYakuman(win("22255m 444p 666888s", "5m", { tsumo: true }), ["suuankou-tanki"]);
 });
 
-test("yakuman: four concealed triplets by self-draw on the two-pair wait", () => {
-  expectYakuman(win("22255m 444p 666888s", "8s", { tsumo: true }), ["suuankou"]);
+test("yakuman: four concealed triplets by self-draw on the two-pair wait is one limit", () => {
+  // Before the 8s: 222m 55m 444p 666s 88s, waiting on 5m or 8s. A single yakuman, not the double.
+  const result = win("22255m 444p 666888s", "8s", { tsumo: true });
+  expectYakuman(result, ["suuankou"]);
+  assert.equal(result.base, 8000);
 });
 
-test("yakuman: four concealed triplets with closed kans", () => {
-  expectYakuman(win("55m 444p 666s", "5m", { melds: [ankan("2222m"), ankan("8888s")] }), ["suuankou"]);
+test("yakuman: four concealed triplets with closed kans (single wait double, two-pair wait single)", () => {
+  expectYakuman(win("55m 444p 666s", "5m", { melds: [ankan("2222m"), ankan("8888s")] }), ["suuankou-tanki"]);
+  // 55m 44p 666s and two closed kans, drawing the 4p on the two-pair wait.
+  expectYakuman(win("55m 444p 666s", "4p", { tsumo: true, melds: [ankan("2222m"), ankan("8888s")] }), ["suuankou"]);
 });
 
 test("yakuman: big three dragons, open (pon 555z, pon 666z, 777z 234m 99p)", () => {
@@ -654,8 +680,19 @@ test("yakuman: little four winds (pon 111z, pon 222z, 333z 44z 234m)", () => {
   expectYakuman(win("234m 33344z", "3m", { melds: [pon("111z"), pon("222z")] }), ["shousuushii"]);
 });
 
-test("yakuman: big four winds is one limit, not two (pon 111z 222z 333z, 444z 99m)", () => {
-  expectYakuman(win("99m 444z", "9m", { melds: [pon("111z"), pon("222z"), pon("333z")] }), ["daisuushii"]);
+test("double yakuman: big four winds (pon 111z 222z 333z, 444z 99m), on any wait", () => {
+  const result = win("99m 444z", "9m", { melds: [pon("111z"), pon("222z"), pon("333z")] });
+  expectYakuman(result, ["daisuushii"]);
+  assert.equal(result.base, 16000);
+  // Closed, on a discarded North (two-pair wait with 99m): the North triplet counts as open, so only
+  // three are concealed and it is big four winds alone.
+  expectYakuman(win("99m 111222333444z", "4z"), ["daisuushii"]);
+});
+
+test("yakuman: little four winds is one limit (three wind sets and a wind pair)", () => {
+  const result = win("234m 33344z", "3m", { melds: [pon("111z"), pon("222z")] });
+  expectYakuman(result, ["shousuushii"]);
+  assert.equal(result.base, 8000);
 });
 
 test("yakuman: all honors (pon 111z, pon 222z, 333z 555z 66z)", () => {
@@ -687,14 +724,24 @@ test("yakuman: one 5s spoils all green (223344s 55s 666s 888s is a full flush)",
   expectWin(win("22334455666888s", "5s"), { yaku: { chinitsu: 6, tanyao: 1, iipeikou: 1 }, han: 8, fu: 40, limit: "baiman" });
 });
 
-test("yakuman: nine gates (1112345678999m and a second 9m)", () => {
-  expectYakuman(win("11123456789999m", "9m"), ["chuuren"]);
+test("double yakuman: pure nine gates (1112345678999m before the win, so any of the nine wins)", () => {
+  const result = win("11123456789999m", "9m");
+  expectYakuman(result, ["chuuren-pure"]);
+  assert.equal(result.base, 16000);
+  expectYakuman(win("11122345678999m", "2m", { tsumo: true }), ["chuuren-pure"]);
+  expectYakuman(win("11123455678999p", "5p"), ["chuuren-pure"]);
+  expectYakuman(win("11112345678999s", "1s"), ["chuuren-pure"]);
 });
 
-test("yakuman: nine gates with any extra tile, by self-draw (a second 2m, a second 5m)", () => {
-  expectYakuman(win("11122345678999m", "2m", { tsumo: true }), ["chuuren"]);
-  expectYakuman(win("11123455678999p", "5p"), ["chuuren"]);
-  expectYakuman(win("11112345678999s", "1s"), ["chuuren"]);
+test("yakuman: nine gates won on a tile other than the extra one is one limit", () => {
+  // Before the 4m: 111 22 3 5678 999m (the extra tile is the second 2m), waiting on 4m only.
+  const result = win("11122345678999m", "4m");
+  expectYakuman(result, ["chuuren"]);
+  assert.equal(result.base, 8000);
+  // Before the 6p: 111 2345 5 78 999p, waiting on 6p only; by self-draw.
+  expectYakuman(win("11123455678999p", "6p", { tsumo: true }), ["chuuren"]);
+  // Before the 9s: 1111 2345678 99s, waiting on 9s only.
+  expectYakuman(win("11112345678999s", "9s"), ["chuuren"]);
 });
 
 test("yakuman: nine gates needs a closed hand (pon 111m, 234 55 678 999m is a full flush)", () => {
@@ -719,14 +766,19 @@ test("stacked yakuman: big three dragons and all honors is 2", () => {
   assert.equal(result.base, 16000);
 });
 
-test("stacked yakuman: four concealed triplets, big three dragons and all honors is 3", () => {
+test("stacked yakuman: four concealed triplets on the single wait, big three dragons and all honors is 4", () => {
+  // Won on the second 2z: the single wait, so the concealed triplets count double (2 + 1 + 1).
   const result = win("11122555666777z", "2z", { tsumo: true });
-  expectYakuman(result, ["suuankou", "daisangen", "tsuuiisou"]);
-  assert.equal(result.base, 24000);
-  expectYakuman(win("11122555666777z", "2z"), ["suuankou", "daisangen", "tsuuiisou"]);
+  expectYakuman(result, ["suuankou-tanki", "daisangen", "tsuuiisou"]);
+  assert.equal(result.base, 32000);
+  expectYakuman(win("11122555666777z", "2z"), ["suuankou-tanki", "daisangen", "tsuuiisou"]);
+  // Self-drawn on the two-pair wait (the 1z): 1 + 1 + 1.
+  const shanpon = win("11122555666777z", "1z", { tsumo: true });
+  expectYakuman(shanpon, ["suuankou", "daisangen", "tsuuiisou"]);
+  assert.equal(shanpon.base, 24000);
 });
 
-test("stacked yakuman: big four winds and all honors is 2", () => {
+test("stacked yakuman: big four winds and all honors is 3", () => {
   expectYakuman(win("44455z", "5z", { melds: [pon("111z"), pon("222z"), pon("333z")] }), ["daisuushii", "tsuuiisou"]);
 });
 
@@ -734,27 +786,42 @@ test("stacked yakuman: little four winds and all honors is 2", () => {
   expectYakuman(win("33344555z", "4z", { melds: [pon("111z"), pon("222z")] }), ["shousuushii", "tsuuiisou"]);
 });
 
-test("stacked yakuman: all terminals and four concealed triplets is 2", () => {
-  expectYakuman(win("111999m 111999p 11s", "1s", { tsumo: true }), ["chinroutou", "suuankou"]);
+test("stacked yakuman: all terminals and four concealed triplets on the single wait is 3", () => {
+  expectYakuman(win("111999m 111999p 11s", "1s", { tsumo: true }), ["chinroutou", "suuankou-tanki"]);
 });
 
-test("stacked yakuman: all green and four concealed triplets is 2", () => {
-  expectYakuman(win("222444666888s 66z", "6z"), ["ryuuiisou", "suuankou"]);
+test("stacked yakuman: all green and four concealed triplets on the single wait is 3", () => {
+  expectYakuman(win("222444666888s 66z", "6z"), ["ryuuiisou", "suuankou-tanki"]);
 });
 
-test("stacked yakuman: four closed kans are four kans and four concealed triplets", () => {
-  expectYakuman(win("99m", "9m", { melds: [ankan("2222m"), ankan("4444p"), ankan("6666s"), ankan("8888s")] }), ["suukantsu", "suuankou"]);
+test("stacked yakuman: four closed kans are four kans and four concealed triplets (always the single wait)", () => {
+  const result = win("99m", "9m", { melds: [ankan("2222m"), ankan("4444p"), ankan("6666s"), ankan("8888s")] });
+  expectYakuman(result, ["suukantsu", "suuankou-tanki"]);
+  assert.equal(result.base, 24000);
 });
 
 test("stacked yakuman: blessing of heaven on thirteen orphans, and on four concealed triplets", () => {
-  expectYakuman(win("19m 19p 19s 12345677z", "7z", { tsumo: true, tenhou: true, seat: EAST }), ["kokushi", "tenhou"]);
+  // The dealer's fourteenth tile is read as the winning tile: 7z after all thirteen kinds is the thirteen-sided wait.
+  expectYakuman(win("19m 19p 19s 12345677z", "7z", { tsumo: true, tenhou: true, seat: EAST }), ["kokushi-13", "tenhou"]);
+  expectYakuman(win("19m 19p 19s 12345677z", "1m", { tsumo: true, tenhou: true, seat: EAST }), ["kokushi", "tenhou"]);
   expectYakuman(win("22255m 444p 666888s", "8s", { tsumo: true, tenhou: true, seat: EAST }), ["suuankou", "tenhou"]);
 });
 
 test("yakuman: ordinary yaku and dora add nothing to a yakuman", () => {
   const result = win("22255m 444p 666888s", "5m", { riichi: 1, ippatsu: true, dora: parseKinds("2m4p"), ura: parseKinds("6s"), redFives: 1 });
-  expectYakuman(result, ["suuankou"]);
-  assert.equal(result.base, 8000);
+  expectYakuman(result, ["suuankou-tanki"]);
+  assert.equal(result.base, 16000);
+  const single = win("22255m 444p 666888s", "8s", { tsumo: true, riichi: 1, dora: parseKinds("2m4p"), redFives: 1 });
+  expectYakuman(single, ["suuankou"]);
+  assert.equal(single.base, 8000);
+});
+
+test("yakuman: 13 han from ordinary yaku is one counted yakuman, never a double", () => {
+  // As runs 123m 123m 456m 789m 55m: riichi 1, self-draw 1, full flush 6, pure double sequence 1, pure
+  // straight 2 = 11 han, and dora 1m, 1m, 2m, 3m count 8 more: 19 han, still one limit.
+  const result = win("112233m 456789m 55m", "5m", { riichi: 1, tsumo: true, dora: parseKinds("1m1m2m3m") });
+  expectWin(result, { limit: "kazoe", base: 8000 });
+  assert.ok(result.han >= 13);
 });
 
 // The closed full flush 111m 234m 456m 678m 99m taking 5m: 6 han, read one way only.
@@ -1012,8 +1079,13 @@ test("points: whole hands through evaluate and payments", () => {
   // Pinfu self-draw, 2 han 20 fu: 400 and 700.
   const drawn = win(PLAIN, "5p", { tsumo: true });
   assert.deepEqual(payments({ base: drawn.base, winner: 1, dealer: 0, tsumo: true }).from, { 0: 700, 2: 400, 3: 400 });
-  // Thirteen orphans: 32,000.
-  assert.equal(pay(win("19m 19p 19s 12345677z", "7z"), false), 32000);
+  // Thirteen orphans on a single wait: 32,000. On the thirteen-sided wait, a double: 64,000.
+  assert.equal(pay(win("19m 19p 19s 12345677z", "1m"), false), 32000);
+  assert.equal(pay(win("19m 19p 19s 12345677z", "7z"), false), 64000);
+  // Four concealed triplets on the single wait to a dealer: 96,000; big four winds by self-draw from a non-dealer: 32,000 and 16,000 each.
+  assert.equal(pay(win("22255m 444p 666888s", "5m", { seat: EAST }), true), 96000);
+  const winds = win("99m 444z", "9m", { tsumo: true, melds: [pon("111z"), pon("222z"), pon("333z")] });
+  assert.deepEqual(payments({ base: winds.base, winner: 1, dealer: 0, tsumo: true }).from, { 0: 32000, 2: 16000, 3: 16000 });
 });
 
 // ── 5. The reading that scores most ────────────────────────────────────────
@@ -1038,9 +1110,9 @@ test("highest reading: the same hand self-drawn is still better as runs (6 han a
 });
 
 test("highest reading: 111222333m 555p 99s self-drawn is four concealed triplets", () => {
-  expectYakuman(win("111222333m 555p 99s", "9s", { tsumo: true }), ["suuankou"]);
+  expectYakuman(win("111222333m 555p 99s", "9s", { tsumo: true }), ["suuankou-tanki"]);
   expectYakuman(win("111222333m 555p 99s", "2m", { tsumo: true }), ["suuankou"]);
-  expectYakuman(win("111222333m 555p 99s", "9s"), ["suuankou"]);
+  expectYakuman(win("111222333m 555p 99s", "9s"), ["suuankou-tanki"]);
 });
 
 test("highest reading: 111222333m 555p 99s on a discarded 5p is all triplets and three concealed triplets", () => {
@@ -1082,11 +1154,11 @@ test("highest reading: 22223333444455m on 5m is best as 22m 234m 234m 345m 345m"
 });
 
 test("highest reading: a yakuman and a counted yakuman of the same size pay the same", () => {
-  // 111222333m 555m 99m self-drawn in riichi with dora 1m and 2m. As triplets: four concealed triplets.
-  // As runs: full flush 6, riichi 1, self-draw 1, double run 1, dora 6 = 15 han, a counted yakuman.
-  // Both are 8,000 base. The rule sheet only says the hand is read the way that scores most, so which
-  // name it carries is left open; the points are not.
-  const result = win("11122233355599m", "9m", { tsumo: true, riichi: 1, dora: parseKinds("1m2m") });
+  // 111222333m 555m 99m self-drawn on the 5m (the two-pair wait with 99m) in riichi with dora 1m and
+  // 2m. As triplets: four concealed triplets, one limit. As runs: full flush 6, riichi 1, self-draw 1,
+  // double run 1, dora 6 = 15 han, a counted yakuman. Both are 8,000 base. The rule sheet only says the
+  // hand is read the way that scores most, so which name it carries is left open; the points are not.
+  const result = win("11122233355599m", "5m", { tsumo: true, riichi: 1, dora: parseKinds("1m2m") });
   assert.equal(result.base, 8000);
   assert.ok(["yakuman", "kazoe"].includes(result.limit), `limit ${result.limit}`);
   assert.deepEqual(payments({ base: result.base, winner: 1, dealer: 0, tsumo: true }).from, { 0: 16000, 2: 8000, 3: 8000 });

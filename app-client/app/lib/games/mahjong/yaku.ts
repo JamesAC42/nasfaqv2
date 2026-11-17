@@ -49,6 +49,8 @@ export type YakuInfo = {
   /** Han when the hand has called sets; null if open hands can't use it. */
   open: number | "yakuman" | null;
   yakuman: boolean;
+  /** A yakuman worth two limits (the special waits, and big four winds). */
+  double?: boolean;
   /** One plain-English sentence a beginner can follow. */
   explain: string;
   example: YakuExample;
@@ -338,7 +340,17 @@ const ROWS: Row[] = [
     closed: "yakuman",
     open: null,
     explain: "One of each terminal and honor (1 and 9 of every suit and all seven honors) plus a second copy of any of them.",
-    example: { hand: "19m19p19s1234567z", win: "1m", caption: "Thirteen different edge tiles and a twin." },
+    example: { hand: "19m19p19s1234566z", win: "7z", caption: "Twelve kinds and a twin, waiting on the one that’s missing." },
+  },
+  {
+    key: "kokushi-13",
+    name: "Thirteen orphans, thirteen-sided wait",
+    japanese: "Kokushi musou juusanmen",
+    closed: "yakuman",
+    open: null,
+    double: true,
+    explain: "Thirteen orphans where you held all thirteen kinds before the last tile, so any of them would have won. Worth two yakuman.",
+    example: { hand: "19m19p19s1234567z", win: "1m", caption: "One of every edge tile: any of the thirteen wins." },
   },
   {
     key: "suuankou",
@@ -346,8 +358,18 @@ const ROWS: Row[] = [
     japanese: "Suuankou",
     closed: "yakuman",
     open: null,
-    explain: "Four sets of three of a kind that you drew yourself, and a pair.",
-    example: { hand: "111m444p777s555z9m", win: "9m", tsumo: true, caption: "Four closed triplets, waiting on the pair." },
+    explain: "Four sets of three of a kind that you drew yourself, and a pair. Waiting on two pairs, you must draw the last tile yourself: a discard would make that set open.",
+    example: { hand: "111m444p777s55z99m", win: "9m", tsumo: true, caption: "Two pairs waiting: you draw the third 9." },
+  },
+  {
+    key: "suuankou-tanki",
+    name: "Four concealed triplets, single wait",
+    japanese: "Suuankou tanki",
+    closed: "yakuman",
+    open: null,
+    double: true,
+    explain: "Four concealed triplets already made, waiting on the pair’s second tile. Worth two yakuman, by self-draw or on a discard.",
+    example: { hand: "111m444p777s555z9m", win: "9m", caption: "Four closed triplets, waiting on the pair." },
   },
   {
     key: "daisangen",
@@ -373,7 +395,8 @@ const ROWS: Row[] = [
     japanese: "Daisuushii",
     closed: "yakuman",
     open: "yakuman",
-    explain: "Sets of all four winds. If you feed someone their last wind set, you pay for the whole hand.",
+    double: true,
+    explain: "Sets of all four winds. Worth two yakuman. If you feed someone their last wind set, you pay for the whole hand.",
     example: { hand: "222z333z444z5p", win: "5p", calls: [{ type: "pon", tiles: "111z", called: 0 }], caption: "All four winds as sets." },
   },
   {
@@ -410,7 +433,17 @@ const ROWS: Row[] = [
     closed: "yakuman",
     open: null,
     explain: "One suit, closed: 1-1-1, 2 through 8, and 9-9-9, plus any one more tile of that suit.",
-    example: { hand: "1112345678999m", win: "5m", caption: "The nine gates plus one more." },
+    example: { hand: "1112245678999m", win: "3m", caption: "The extra tile came early: the 3 finishes the gates." },
+  },
+  {
+    key: "chuuren-pure",
+    name: "Pure nine gates",
+    japanese: "Junsei chuuren poutou",
+    closed: "yakuman",
+    open: null,
+    double: true,
+    explain: "Nine gates where you held exactly 1-1-1, 2 through 8, and 9-9-9 before the last tile, so any tile of the suit would have won. Worth two yakuman.",
+    example: { hand: "1112345678999m", win: "5m", caption: "The bare gates: all nine tiles of the suit win." },
   },
   {
     key: "suukantsu",
@@ -450,9 +483,15 @@ export const yakuInfo = (key: string): YakuInfo | null => (key in YAKU ? YAKU[ke
 /** The English name for a key; the key itself if unknown. */
 export const yakuName = (key: string) => yakuInfo(key)?.name ?? key;
 
+/** A scored yaku line's value: "2 han", "Yakuman" (13), "Double yakuman" (26). */
+export const yakuLineText = (han: number) => (han >= 26 ? "Double yakuman" : han >= 13 ? "Yakuman" : `${han} han`);
+
 /** "1 han", "2 han (1 open)", "closed only: 2 han", "yakuman". */
 export function yakuValueText(info: YakuInfo): string {
-  if (info.yakuman) return info.open === null ? "Yakuman, closed hands only" : "Yakuman";
+  if (info.yakuman) {
+    const name = info.double ? "Double yakuman" : "Yakuman";
+    return info.open === null ? `${name}, closed hands only` : name;
+  }
   const closed = info.closed as number;
   if (info.open === null) return `${closed} han, closed hands only`;
   if (info.open === closed) return `${closed} han`;
@@ -464,7 +503,7 @@ export const YAKU_GROUPS: { title: string; keys: YakuKey[] }[] = [
   { title: "One han", keys: ["riichi", "ippatsu", "menzen-tsumo", "pinfu", "iipeikou", "tanyao", "yakuhai-white", "yakuhai-green", "yakuhai-red", "yakuhai-seat", "yakuhai-round", "rinshan", "chankan", "haitei", "houtei"] },
   { title: "Two han", keys: ["double-riichi", "chiitoitsu", "sanshoku", "ittsu", "chanta", "toitoi", "sanankou", "sanshoku-doukou", "sankantsu", "honroutou", "shousangen"] },
   { title: "Three to six han", keys: ["honitsu", "junchan", "ryanpeikou", "chinitsu"] },
-  { title: "Yakuman", keys: ["kokushi", "suuankou", "daisangen", "shousuushii", "daisuushii", "tsuuiisou", "chinroutou", "ryuuiisou", "chuuren", "suukantsu", "tenhou", "chiihou"] },
+  { title: "Yakuman", keys: ["kokushi", "kokushi-13", "suuankou", "suuankou-tanki", "daisangen", "shousuushii", "daisuushii", "tsuuiisou", "chinroutou", "ryuuiisou", "chuuren", "chuuren-pure", "suukantsu", "tenhou", "chiihou"] },
 ];
 
 // ── Fu ──────────────────────────────────────────────────────────────────────
@@ -504,6 +543,9 @@ export const LIMITS: Record<LimitName, LimitInfo> = {
 export const LIMIT_ORDER: LimitName[] = ["mangan", "haneman", "baiman", "sanbaiman", "kazoe", "yakuman"];
 export const limitName = (limit: LimitName | null | undefined) => (limit ? LIMITS[limit].name : null);
 
+/** How many yakuman a preview's han make (13 per limit), for scoreText when only han and limit are known. */
+export const yakumanOf = (limit: LimitName | null | undefined, han: number) => (limit === "yakuman" ? Math.round(han / 13) : 0);
+
 /** A score line: "Haneman", "Double yakuman", "3 han 30 fu". */
 export function scoreText(win: { han: number; fu: number; limit: LimitName | null; yakuman: number }): string {
   if (win.yakuman > 1) return win.yakuman === 2 ? "Double yakuman" : win.yakuman === 3 ? "Triple yakuman" : `${win.yakuman}x yakuman`;
@@ -529,6 +571,7 @@ export const DRAW_REASONS: Record<DrawReason, { name: string; text: string }> = 
   suufon: { name: "Four winds", text: "The same wind was the first discard of all four players." },
   suucha: { name: "Four riichi", text: "All four players declared riichi." },
   suukan: { name: "Four kans", text: "Four kans were made by more than one player." },
+  sanchahou: { name: "Triple ron", text: "Three players won on the same tile, so nobody is paid." },
 };
 
 export const NO_WIN_REASONS: Record<NoWinReason, string> = {

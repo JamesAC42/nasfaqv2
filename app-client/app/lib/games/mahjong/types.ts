@@ -22,7 +22,7 @@ export type HandPhase = "turn" | "calls" | "over";
 /** Under mangan is null. "kazoe" is 13+ han counted as a yakuman. */
 export type LimitName = "mangan" | "haneman" | "baiman" | "sanbaiman" | "yakuman" | "kazoe";
 export type WaitName = "ryanmen" | "kanchan" | "penchan" | "tanki" | "shanpon";
-export type DrawReason = "exhaustive" | "nagashi" | "kyuushu" | "suufon" | "suucha" | "suukan";
+export type DrawReason = "exhaustive" | "nagashi" | "kyuushu" | "suufon" | "suucha" | "suukan" | "sanchahou";
 export type FuritenReason = "discard" | "passed" | "riichi";
 /** Why a tile that completes your hand can't be won on. */
 export type NoWinReason = "no_yaku" | "furiten_discard" | "furiten_passed" | "furiten_riichi";
@@ -34,8 +34,8 @@ export type YakuKey =
   | "yakuhai-white" | "yakuhai-green" | "yakuhai-red" | "yakuhai-seat" | "yakuhai-round"
   | "rinshan" | "chankan" | "haitei" | "houtei" | "chiitoitsu" | "sanshoku" | "ittsu" | "chanta" | "junchan"
   | "toitoi" | "sanankou" | "sanshoku-doukou" | "sankantsu" | "honroutou" | "shousangen" | "honitsu" | "chinitsu"
-  | "kokushi" | "suuankou" | "daisangen" | "shousuushii" | "daisuushii" | "tsuuiisou" | "chinroutou" | "ryuuiisou"
-  | "chuuren" | "suukantsu" | "tenhou" | "chiihou";
+  | "kokushi" | "kokushi-13" | "suuankou" | "suuankou-tanki" | "daisangen" | "shousuushii" | "daisuushii" | "tsuuiisou" | "chinroutou" | "ryuuiisou"
+  | "chuuren" | "chuuren-pure" | "suukantsu" | "tenhou" | "chiihou";
 
 /** The keys of a fu breakdown (agari.js fuParts). `wait-*` is kanchan, penchan or tanki. */
 export type FuPartKey =
@@ -116,7 +116,7 @@ export type LastEvent =
 
 // ── Results ─────────────────────────────────────────────────────────────────
 export type FuPart = { key: FuPartKey; fu: number; /** the tile kind for triplets, kans and a value pair */ kind?: TileKind };
-export type YakuLine = { key: YakuKey; /** 13 for a yakuman */ han: number };
+export type YakuLine = { key: YakuKey; /** 13 for a yakuman, 26 for a double yakuman */ han: number };
 
 /** One winner's hand (round.js winRecord). A ron adds `chankan`. */
 export type WinEntry = {
@@ -134,7 +134,7 @@ export type WinEntry = {
   han: number;
   fu: number;
   fu_parts: FuPart[];
-  /** How many yakuman (0 for an ordinary hand). */
+  /** How many yakuman limits (0 for an ordinary hand; a double yakuman counts 2). */
   yakuman: number;
   limit: LimitName | null;
   /** Counts of dora, ura dora and red fives that scored. */
@@ -173,7 +173,7 @@ export type DrawResult = {
   tenpai: boolean[];
   /** Seats that scored nagashi mangan. */
   nagashi: SeatIndex[];
-  /** Hands shown (tenpai at an exhaustive draw, or the seat that called kyuushu), keyed by seat. */
+  /** Hands shown (tenpai at an exhaustive draw, the seat that called kyuushu, or the three sanchahou winners), keyed by seat. */
   hands: Record<string, TileId[]>;
   /** Waits of the shown hands, keyed by seat. */
   waits: Record<string, TileKind[]>;
@@ -183,6 +183,11 @@ export type DrawResult = {
   scores: [number, number, number, number];
   /** For kyuushu: who called it. */
   by?: SeatIndex;
+  /** For sanchahou (three players won on one tile): the three seats, in turn order after the discarder. */
+  ron?: SeatIndex[];
+  /** For sanchahou: the tile they won on and the seat it came from. */
+  tile?: TileId;
+  from?: SeatIndex;
 };
 
 export type HandResult = WinResult | DrawResult;

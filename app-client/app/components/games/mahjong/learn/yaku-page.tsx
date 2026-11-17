@@ -39,7 +39,7 @@ function Value({ info }: { info: YakuInfo }) {
   if (info.yakuman)
     return (
       <span className={styles.value} data-yakuman="">
-        {info.open === null ? "Yakuman · closed only" : "Yakuman · open or closed"}
+        {info.double ? "Double yakuman" : "Yakuman"} · {info.open === null ? "closed only" : "open or closed"}
       </span>
     );
   return (
@@ -95,8 +95,9 @@ export function YakuPage() {
 
       <div className={learn.prose} style={{ paddingTop: "1.25rem" }}>
         <p>
-          An open hand (one with a called set) loses a han on the patterns marked, and can’t use the ones marked closed. Closed kans don’t open a hand. Every yakuman is worth one limit, different yakuman in one hand add
-          up, and there are no double yakuman for special waits. A hand of 13 han or more from ordinary yaku and dora counts as a yakuman too.
+          An open hand (one with a called set) loses a han on the patterns marked, and can’t use the ones marked closed. Closed kans don’t open a hand. Every yakuman is worth one limit, except four worth two (double
+          yakuman): thirteen orphans on the thirteen-sided wait, four concealed triplets on the single wait, pure nine gates, and big four winds. Different yakuman in one hand add up. A hand of 13 han or more from ordinary yaku
+          and dora counts as one yakuman too.
         </p>
       </div>
 

@@ -8,7 +8,7 @@ import { useRemaining } from "@/app/lib/games/use-remaining";
 import { kindName } from "@/app/lib/games/mahjong/tiles";
 import { points, seatLabel, signed, winWord } from "@/app/lib/games/mahjong/table-model";
 import type { DrawResult, HandResult, MahjongTable, SeatIndex, WinEntry, WinResult } from "@/app/lib/games/mahjong/types";
-import { DRAW_REASONS, LIMITS, fuPartText, scoreText, waitName, yakuName } from "@/app/lib/games/mahjong/yaku";
+import { DRAW_REASONS, LIMITS, fuPartText, scoreText, waitName, yakuLineText, yakuName } from "@/app/lib/games/mahjong/yaku";
 import styles from "@/app/components/games/mahjong/table/table-panels.module.scss";
 
 type Names = { table: MahjongTable; seatStyles: SeatStyle[] };
@@ -65,7 +65,7 @@ export function WinHand({ win }: { win: WinEntry }) {
 /** Each scoring line of a win: the yaku, then dora, ura dora and red fives. */
 export function winLines(win: WinEntry): { label: string; han: string }[] {
   const dora = win.dora;
-  const lines: { label: string; han: string }[] = win.yaku.map((entry) => ({ label: yakuName(entry.key), han: entry.han >= 13 ? "Yakuman" : `${entry.han} han` }));
+  const lines: { label: string; han: string }[] = win.yaku.map((entry) => ({ label: yakuName(entry.key), han: yakuLineText(entry.han) }));
   if (dora.dora) lines.push({ label: `Dora ×${dora.dora}`, han: `${dora.dora} han` });
   if (dora.ura) lines.push({ label: `Ura dora ×${dora.ura}`, han: `${dora.ura} han` });
   if (dora.red) lines.push({ label: `Red five ×${dora.red}`, han: `${dora.red} han` });
@@ -154,6 +154,22 @@ function DrawBody({ result, table, seatStyles }: { result: DrawResult } & Names)
                     <Tile key={id} id={id} size={18} labels={false} />
                   ))}
                   {result.waits[String(seat)]?.length ? <small>waits {result.waits[String(seat)].map(kindName).join(", ")}</small> : null}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : result.reason === "sanchahou" && result.ron?.length ? (
+        <ul className={styles.tenpai}>
+          {result.ron.map((seat) => (
+            <li key={seat} data-ready style={{ "--tal": seatStyles[seat]?.color } as CSSProperties}>
+              <span>{nameOf(table, seat)}</span>
+              <b>Ron</b>
+              {result.hands[String(seat)] ? (
+                <span className={styles.shownHand}>
+                  {result.hands[String(seat)].map((id) => (
+                    <Tile key={id} id={id} size={18} labels={false} />
+                  ))}
                 </span>
               ) : null}
             </li>

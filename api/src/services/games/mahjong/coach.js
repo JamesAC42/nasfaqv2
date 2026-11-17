@@ -515,7 +515,7 @@ function callAdvice(state, seat, options, ctx) {
   const out = [];
   const tile = options.tile;
   if (options.ron) {
-    const win = previewWin(state, seat, state.hands[seat], kindOf(tile), false, { exact: true, chankan: state.pending?.kind === "kakan", tileId: tile });
+    const win = previewWin(state, seat, state.hands[seat], kindOf(tile), false, { exact: true, chankan: Boolean(state.pending) && state.pending.kind !== "discard", tileId: tile });
     out.push({ option: { type: "ron" }, effects: [{ code: "wins_hand", tsumo: false, han: win?.han ?? 0, fu: win?.fu ?? 0, points: win?.points ?? 0, yaku: win?.yaku ?? [], limit: win?.limit ?? null }], recommend: "take" });
   }
   if (options.kan) out.push({ option: { type: "kan" }, ...callEffects(state, seat, "kan", tile, null, ctx) });

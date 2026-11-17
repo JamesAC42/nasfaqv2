@@ -8,8 +8,9 @@
 //
 // Phases:
 //   "turn"   state.turn holds 14 tiles (or has just called) and must discard, win or kan.
-//   "calls"  a discard (or an added kan) is on the table and the seats in state.pending.options may
-//            answer: ron, pon, kan, chi or pass. It resolves as soon as the answers in can't be beaten.
+//   "calls"  a discard (or an added kan, or a closed kan thirteen orphans could rob) is on the table and
+//            the seats in state.pending.options may answer: ron, pon, kan, chi or pass. It resolves as
+//            soon as the answers in can't be beaten.
 //   "over"   state.result says how it ended.
 
 const { decompose, evaluate, payments } = require("./agari");
@@ -333,7 +334,11 @@ function chiPairs(hand, kind) {
 /** Four kans held by more than one player: the hand is drawn once the next discard goes by. */
 const fourKansAbort = (state) => state.kans === 4 && Math.max(...state.kanSeats) < 4;
 
-function callOptions(state, tile, from, { chankan = false } = {}) {
+/**
+ * Who may answer `tile` and how. `chankan` is a kan being robbed (only ron); with `closedKan` it is a
+ * closed kan, which only thirteen orphans may rob: no other hand can win on it, nor goes furiten by it.
+ */
+function callOptions(state, tile, from, { chankan = false, closedKan = false } = {}) {
   const kind = kindOf(tile);
   const options = {};
   const hits = [];
@@ -342,7 +347,7 @@ function callOptions(state, tile, from, { chankan = false } = {}) {
     const seat = (from + step) % SEATS;
     const mine = {};
     const win = readWin(state, seat, tile, { tsumo: false, chankan });
-    if (win) {
+    if (win && (!closedKan || win.form === "orphans")) {
       hits.push(seat);
       if (!win.noYaku && !furitenOf(state, seat)) mine.ron = true;
     }
@@ -580,15 +585,25 @@ function resolve(state) {
   const { tile, from, hits } = pending;
   const winners = Object.entries(pending.replies).filter(([, reply]) => reply.type === "ron").map(([seat]) => Number(seat));
   state.pending = null;
+  // A kan being robbed (added, or closed for thirteen orphans) isn't completed if anyone wins on it.
+  const robbing = pending.kind !== "discard";
+  if (winners.length === 3) {
+    // Three players won on one tile: an abortive draw. A riichi on that tile is never paid.
+    const ron = [...winners].sort((a, b) => ((a - from + SEATS) % SEATS) - ((b - from + SEATS) % SEATS));
+    const hands = Object.fromEntries(ron.map((seat) => [seat, sortTiles(state.hands[seat])]));
+    const waitsShown = Object.fromEntries(ron.map((seat) => [seat, waits(state, seat)]));
+    finishAbort(state, "sanchahou", { ron, tile, from, hands, waits: waitsShown });
+    return true;
+  }
   if (winners.length) {
     markPassed(state, hits, winners);
-    finishRon(state, winners, tile, from, pending.kind === "kakan");
+    finishRon(state, winners, tile, from, robbing);
     return true;
   }
   markPassed(state, hits);
 
-  if (pending.kind === "kakan") {
-    completeKan(state, from, "kakan");
+  if (robbing) {
+    completeKan(state, from, pending.kind);
     return true;
   }
 
@@ -663,8 +678,19 @@ function doAnkan(state, seat, kind) {
   flipPendingDora(state);
   const tiles = state.hands[seat].filter((held) => kindOf(held) === kind);
   for (const held of tiles) removeTile(state, seat, held);
-  state.melds[seat].push({ type: "ankan", tiles: sortTiles(tiles) });
+  const meld = { type: "ankan", tiles: sortTiles(tiles) };
+  state.melds[seat].push(meld);
   record(state, { t: "ankan", s: seat, tiles: sortTiles(tiles) });
+  // Thirteen orphans may rob a closed kan. Until the others have answered, the kan isn't counted, its
+  // indicator isn't turned and no replacement tile is drawn.
+  const tile = meld.tiles[meld.tiles.length - 1];
+  const { options, hits } = callOptions(state, tile, seat, { chankan: true, closedKan: true });
+  if (Object.keys(options).length) {
+    state.drawn = null;
+    state.pending = { kind: "ankan", tile, from: seat, options, hits, replies: {} };
+    state.phase = "calls";
+    return;
+  }
   completeKan(state, seat, "ankan");
 }
 

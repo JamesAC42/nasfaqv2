@@ -69,6 +69,16 @@ function basePoints(han, fu, yakuman = 0) {
 
 const ceil100 = (value) => Math.ceil(value / 100) * 100;
 
+// Yakuman worth two limits (Mahjong Soul's ranked rules): the three special waits, and big four winds.
+const DOUBLE_YAKUMAN = new Set(["kokushi-13", "suuankou-tanki", "chuuren-pure", "daisuushii"]);
+const yakumanWeight = (key) => (DOUBLE_YAKUMAN.has(key) ? 2 : 1);
+
+/** A yakuman reading: each line is 13 han per limit (26 for a double); `yakuman` counts the limits. */
+function yakumanReading(form, wait, keys, menzen) {
+  const yaku = keys.map((key) => ({ key, han: 13 * yakumanWeight(key) }));
+  return { form, wait, yaku, yakuman: keys.reduce((sum, key) => sum + yakumanWeight(key), 0), yakuHan: 0, fu: 0, fuParts: [], menzen };
+}
+
 /**
  * What each seat pays for a win worth `base`, before honba and sticks. Returns { total, from }: `from`
  * maps a paying seat to its amount. A self-draw is paid by all three; a ron by `loser`.
@@ -117,7 +127,8 @@ function readStandard(ctx, pairKind, concealedSets, spot) {
   const yakuman = [];
   if (ctx.tenhou) yakuman.push("tenhou");
   if (ctx.chiihou) yakuman.push("chiihou");
-  if (closedTriplets === 4) yakuman.push("suuankou");
+  // Won on the pair's second tile (the single wait), four concealed triplets is a double yakuman.
+  if (closedTriplets === 4) yakuman.push(wait === "tanki" ? "suuankou-tanki" : "suuankou");
   if (hasTriplet(31) && hasTriplet(32) && hasTriplet(33)) yakuman.push("daisangen");
   const windTriplets = triplets.filter((set) => isWind(set.kind)).length;
   if (windTriplets === 4) yakuman.push("daisuushii");
@@ -126,10 +137,8 @@ function readStandard(ctx, pairKind, concealedSets, spot) {
   if (isTerminal(pairKind) && sets.every((set) => !set.seq && isTerminal(set.kind))) yakuman.push("chinroutou");
   if (ALL_GREEN.has(pairKind) && sets.every((set) => (set.seq ? set.kind === 19 : ALL_GREEN.has(set.kind)))) yakuman.push("ryuuiisou");
   if (kans === 4) yakuman.push("suukantsu");
-  if (!melds.length && ctx.chuuren) yakuman.push("chuuren");
-  if (yakuman.length) {
-    return { form: "standard", wait, yaku: yakuman.map((key) => ({ key, han: 13 })), yakuman: yakuman.length, yakuHan: 0, fu: 0, fuParts: [], menzen };
-  }
+  if (!melds.length && ctx.chuuren) yakuman.push(ctx.chuuren === "pure" ? "chuuren-pure" : "chuuren");
+  if (yakuman.length) return yakumanReading("standard", wait, yakuman, menzen);
 
   // ── Yaku ─────────────────────────────────────────────────────────────────
   const yaku = [];
@@ -269,7 +278,7 @@ function readSevenPairs(ctx, counts) {
     if (ctx.tenhou) yakuman.push("tenhou");
     if (ctx.chiihou) yakuman.push("chiihou");
     if (kinds.every(isHonor)) yakuman.push("tsuuiisou");
-    return { form: "pairs", wait: "tanki", yaku: yakuman.map((key) => ({ key, han: 13 })), yakuman: yakuman.length, yakuHan: 0, fu: 0, fuParts: [], menzen: true };
+    return yakumanReading("pairs", "tanki", yakuman, true);
   }
   const yaku = [];
   const add = (key, han) => yaku.push({ key, han });
@@ -299,14 +308,18 @@ function readOrphans(ctx, counts) {
   if (total !== 14) return null;
   for (const kind of YAOCHUU_KINDS) if (counts[kind] === 0) return null;
   if (YAOCHUU_KINDS.reduce((sum, kind) => sum + counts[kind], 0) !== 14) return null;
-  const yakuman = ["kokushi"];
+  // All thirteen kinds in hand before the winning tile (the thirteen-sided wait): a double yakuman.
+  const yakuman = [counts[ctx.winKind] === 2 ? "kokushi-13" : "kokushi"];
   if (ctx.tenhou) yakuman.push("tenhou");
   if (ctx.chiihou) yakuman.push("chiihou");
-  return { form: "orphans", wait: "tanki", yaku: yakuman.map((key) => ({ key, han: 13 })), yakuman: yakuman.length, yakuHan: 0, fu: 0, fuParts: [], menzen: true };
+  return yakumanReading("orphans", "tanki", yakuman, true);
 }
 
-/** Nine gates: 1112345678999 of one suit plus any one more of it, all concealed. */
-function isNineGates(counts) {
+/**
+ * Nine gates: 1112345678999 of one suit plus any one more of it, all concealed. Returns false, true,
+ * or "pure" when the hand held exactly 1112345678999 before `winKind` (the nine-sided wait).
+ */
+function isNineGates(counts, winKind = null) {
   for (let suit = 0; suit < 3; suit += 1) {
     const offset = suit * 9;
     let total = 0;
@@ -315,7 +328,11 @@ function isNineGates(counts) {
       total += counts[offset + n];
       if (counts[offset + n] === 0) ok = false;
     }
-    if (ok && total === 14) return true;
+    if (ok && total === 14) {
+      if (winKind === null || winKind < offset || winKind >= offset + 9) return true;
+      const n = winKind - offset;
+      return counts[winKind] === (n === 0 || n === 8 ? 4 : 2) ? "pure" : true;
+    }
   }
   return false;
 }
@@ -338,7 +355,7 @@ function evaluate(input) {
   const counts = countKinds(input.concealed);
   const total = input.concealed.length + melds.length * 3;
   if (total !== 14) return null;
-  const ctx = { ...input, melds, chuuren: !melds.length && isNineGates(counts) };
+  const ctx = { ...input, melds, chuuren: !melds.length && isNineGates(counts, input.winKind) };
 
   const readings = [];
   for (const { pair, sets } of decompose(counts)) {
@@ -394,4 +411,4 @@ function evaluate(input) {
   return { complete: true, ...best };
 }
 
-module.exports = { basePoints, ceil100, decompose, evaluate, isNineGates, payments };
+module.exports = { DOUBLE_YAKUMAN, basePoints, ceil100, decompose, evaluate, isNineGates, payments, yakumanWeight };

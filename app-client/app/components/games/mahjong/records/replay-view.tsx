@@ -468,7 +468,7 @@ function WinBlock({ win, record, hand, names, size }: { win: WinEntry; record: G
         {win.yaku.map((line) => (
           <li key={line.key}>
             {yakuName(line.key)}
-            <b>{line.han >= 13 ? "yakuman" : `${line.han} han`}</b>
+            <b>{line.han >= 26 ? "double yakuman" : line.han >= 13 ? "yakuman" : `${line.han} han`}</b>
           </li>
         ))}
         {win.dora.dora ? (

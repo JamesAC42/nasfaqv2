@@ -74,7 +74,7 @@ export async function handCard(record: GameRecord, hand: RecordedHand, winIndex 
   const [fonts, accent] = await Promise.all([loadFonts(), talentColorFor(player)]);
   const yakuman = win.yakuman > 0;
   const color = yakuman ? GOLD : accent;
-  const yaku: { name: string; han: string }[] = win.yaku.map((line) => ({ name: yakuName(line.key), han: line.han < 13 ? `+${line.han}` : "" }));
+  const yaku: { name: string; han: string }[] = win.yaku.map((line) => ({ name: yakuName(line.key), han: line.han < 13 ? `+${line.han}` : line.han >= 26 ? "×2" : "" }));
   const bonus = win.dora.dora + win.dora.ura + win.dora.red;
   if (bonus > 0) yaku.push({ name: "Dora", han: `+${bonus}` });
   const winnerName = names(record.players, win.seat);

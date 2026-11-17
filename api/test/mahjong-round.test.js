@@ -475,14 +475,75 @@ test("chankan: an added kan can be robbed by a seat waiting on that tile", () =>
   assert.deepEqual(state.result.deltas, [0, -7700, 7700, 0]); // 4 han 30 fu
 });
 
-test("a closed kan can't be robbed, even by thirteen orphans waiting on the tile", () => {
-  const state = mk({ hands: ["111m258p268s1234z", , "99m19p19s1234567z"], draws: "1m" });
+// Seat 2 holds thirteen orphans without a 1m (a pair of 9m), so it waits on 1m alone; seat 0 draws the
+// fourth 1m and makes a closed kan of it.
+const KOKUSHI_ROB = { hands: ["111m258p268s1234z", , "99m19p19s1234567z"], draws: "1m", rinshan: "3p" };
+
+test("thirteen orphans may rob a closed kan: a yakuman on the kan tile, and the kan never happens", () => {
+  const state = mk({ ...KOKUSHI_ROB, honba: 1, sticks: 1 });
   assert.deepEqual(waits(state, 2), K("1m"));
   act(state, 0, { type: "ankan", kind: K("1m")[0] });
+  assert.equal(state.phase, "calls");
+  assert.deepEqual(waitingSeats(state), [2]);
+  const mine = optionsFor(state, 2);
+  assert.equal(mine.ron, true);
+  assert.equal(mine.pon, undefined);
+  assert.equal(mine.kan, undefined);
+  assert.equal(kindOf(mine.tile), K("1m")[0]);
+  // Nothing of the kan has happened yet: no count, no new indicator, no replacement tile.
+  assert.equal(state.kans, 0);
+  assert.equal(round.doraIndicators(state).length, 1);
+  assert.equal(state.rinshanUsed, 0);
+  act(state, 2, { type: "ron" });
+  assert.equal(state.phase, "over");
+  const win = state.result.wins[0];
+  assert.equal(win.seat, 2);
+  assert.equal(win.from, 0);
+  assert.equal(win.chankan, true);
+  assert.deepEqual(win.yaku.map((entry) => entry.key), ["kokushi"], "a single-wait thirteen orphans, one limit; no chankan han on a yakuman");
+  assert.equal(win.yakuman, 1);
+  assert.equal(state.kans, 0, "the robbed kan never happens");
+  assert.equal(state.rinshanUsed, 0);
+  assert.equal(state.result.dora.length, 1, "its indicator never turns");
+  // Non-dealer yakuman on the dealer's tile: 32,000, plus 300 honba and the stick.
+  assert.deepEqual(state.result.deltas, [-32300, 0, 32300 + 1000, 0]);
+  assert.equal(state.result.renchan, false);
+});
+
+test("thirteen orphans passing on a closed kan: the kan completes and the seat is furiten until its next discard", () => {
+  const state = mk(KOKUSHI_ROB);
+  act(state, 0, { type: "ankan", kind: K("1m")[0] });
+  act(state, 2, { type: "pass" });
   assert.equal(state.phase, "turn");
   assert.equal(state.turn, 0);
-  assert.equal(optionsFor(state, 2), null);
+  assert.equal(state.kans, 1);
+  assert.equal(round.doraIndicators(state).length, 2, "the closed kan's indicator turns once nobody robs it");
+  assert.equal(kindOf(state.drawn), K("3p")[0], "the replacement tile");
   assert.equal(state.melds[0][0].type, "ankan");
+  assert.equal(furitenOf(state, 2), "passed");
+});
+
+test("a closed kan can't be robbed by an ordinary hand waiting on that tile, nor does it make that hand furiten", () => {
+  // Seat 2: 23m 456p 345s 777s 99p, in riichi, waiting on 1m and 4m. Seat 0 makes a closed kan of 1m.
+  const state = mk({ hands: ["111m258p268s1234z", , "23m456p345s777s99p"], draws: "9s9s1z2z1m", rinshan: "3p" });
+  tsumogiri(state); // seat 0: 9s
+  passAll(state);
+  tsumogiri(state); // seat 1: 9s
+  passAll(state);
+  tsumogiri(state, true); // seat 2: riichi on the 1z
+  passAll(state);
+  tsumogiri(state); // seat 3: 2z
+  passAll(state);
+  assert.equal(state.turn, 0);
+  assert.deepEqual(waits(state, 2), K("14m"));
+  act(state, 0, { type: "ankan", kind: K("1m")[0] });
+  assert.equal(state.phase, "turn", "nobody is asked");
+  assert.equal(state.turn, 0);
+  assert.equal(optionsFor(state, 2), null);
+  assert.equal(state.kans, 1);
+  assert.equal(round.doraIndicators(state).length, 2);
+  assert.equal(furitenOf(state, 2), null, "the riichi hand isn't furiten from a tile it could never win on");
+  assert.equal(state.riichiFuriten[2], false);
 });
 
 test("no fifth kan: a closed, added or open kan is refused once four are down", () => {
@@ -547,9 +608,10 @@ test("four kans by one player and a self-draw win is four kans (suukantsu)", () 
   act(state, 0, { type: "tsumo" });
   const win = state.result.wins[0];
   assert.ok(win.yaku.some((entry) => entry.key === "suukantsu"));
-  assert.ok(win.yaku.some((entry) => entry.key === "suuankou"), "four closed kans are four concealed triplets too");
-  assert.equal(win.yakuman, 2);
-  assert.deepEqual(state.result.deltas, [96000, -32000, -32000, -32000]);
+  // Four closed kans and a lone 4m: four concealed triplets on the single wait, a double, plus four kans.
+  assert.ok(win.yaku.some((entry) => entry.key === "suuankou-tanki"), "four closed kans are four concealed triplets too");
+  assert.equal(win.yakuman, 3);
+  assert.deepEqual(state.result.deltas, [144000, -48000, -48000, -48000]);
 });
 
 test("a closed kan in riichi: allowed when the waits and the reading stay the same", () => {
@@ -987,17 +1049,56 @@ test("double ron with the dealer: sticks to whoever is next after the discarder;
   assert.equal(state.sticks, 0);
 });
 
-test("triple ron: all three are paid and it is not a draw", () => {
-  const hands = [, TANYAO_67M, "234m456p345s66s67m", "234m456p345s22s67m"];
-  const state = mk({ hands, draws: "5m", honba: 1, sticks: 1 });
+const THREE_WAIT = [, TANYAO_67M, "234m456p345s66s67m", "234m456p345s22s67m"]; // seats 1-3 all wait on 5m and 8m
+
+test("triple ron: three players winning on one discard is an abortive draw; the sticks stay and the dealer stays", () => {
+  const state = mk({ hands: THREE_WAIT, draws: "5m", honba: 1, sticks: 1 });
   tsumogiri(state);
   for (const seat of [1, 2, 3]) assert.equal(optionsFor(state, seat).ron, true);
   act(state, 3, { type: "ron" });
+  assert.equal(state.phase, "calls", "the others may still answer");
   act(state, 1, { type: "ron" });
+  assert.equal(state.phase, "calls", "two rons in: the third is still waited for");
   act(state, 2, { type: "ron" });
+  assert.equal(state.phase, "over");
+  assert.equal(state.result.type, "draw");
+  assert.equal(state.result.reason, "sanchahou");
+  assert.deepEqual(state.result.ron, [1, 2, 3]);
+  assert.deepEqual(state.result.deltas, [0, 0, 0, 0]);
+  assert.deepEqual(state.result.scores, SCORES);
+  assert.equal(state.sticks, 1, "the stick stays on the table");
+  assert.equal(state.result.renchan, true);
+  assert.equal(state.result.honba_next, 2);
+  assert.deepEqual(Object.keys(state.result.hands).sort(), ["1", "2", "3"]);
+});
+
+test("triple ron on a riichi discard: the riichi is never paid, and the game deals the same dealer again", () => {
+  // Seat 0 (dealer) is waiting on 9m and declares riichi on the 5m that all three others win on.
+  const game = gameLib.createGame({ seed: "cd".repeat(32), length: "east" });
+  game.hand = mk({ hands: ["123p789p123s789s9m", ...THREE_WAIT.slice(1)], draws: "5m", sticks: 2 });
+  game.sticks = 2;
+  tsumogiri(game.hand, true);
+  for (const seat of [1, 2, 3]) act(game.hand, seat, { type: "ron" });
+  assert.equal(game.hand.result.reason, "sanchahou");
+  assert.deepEqual(game.hand.result.scores, SCORES, "no riichi stick taken");
+  assert.equal(game.hand.sticks, 2);
+  gameLib.next(game);
+  assert.equal(game.hand.dealer, 0);
+  assert.equal(game.hand.honba, 1);
+  assert.equal(game.hand.sticks, 2);
+});
+
+test("three could win but one passes: a double ron, both paid, and the one who passed is furiten", () => {
+  const state = mk({ hands: THREE_WAIT, draws: "5m", honba: 1, sticks: 1 });
+  tsumogiri(state);
+  act(state, 2, { type: "pass" });
+  act(state, 3, { type: "ron" });
+  act(state, 1, { type: "ron" });
   assert.equal(state.result.type, "win");
-  assert.equal(state.result.wins.length, 3);
-  assert.deepEqual(state.result.deltas, [-(3 * 2300), 2300 + 1000, 2300, 2300]);
+  assert.deepEqual(state.result.wins.map((win) => win.seat), [1, 3]);
+  // 2,000 each + 300 honba each; the stick to seat 1, next after the discarder.
+  assert.deepEqual(state.result.deltas, [-4600, 2300 + 1000, 0, 2300]);
+  assert.equal(state.tempFuriten[2], true);
 });
 
 test("blessing of heaven: the dealer's self-draw on the first draw is a yakuman", () => {
@@ -1137,6 +1238,54 @@ test("pao: a ron off a third player is split between that player and the feeder"
   act(state, 1, { type: "ron" });
   // Yakuman by ron, non-dealer: 32,000. Half each; the discarder also pays the honba.
   assert.deepEqual(state.result.deltas, [0, 32300, -16000, -16300]);
+});
+
+// Seat 1 pons East from seat 0, South and North from seat 2, and West from seat 3 (the last wind, so
+// seat 3 is liable), then waits on 9m alone. `tail` is what seats 2, 3, 0, 1 draw after that.
+function daisuushii(tail, extra = {}) {
+  const hands = ["147m147p147s1234z", "9m147p2s11223344z", "47p58p69p14s25s36s7z", "17p28p39p17s28s39s6z"];
+  const state = mk({ hands, draws: "1z2z4z5z3z" + tail, ...extra });
+  tsumogiri(state); // seat 0: 1z
+  act(state, 1, { type: "pon", tiles: optionsFor(state, 1).pon[0] });
+  discard(state, 1, "1p");
+  passAll(state);
+  tsumogiri(state); // seat 2: 2z
+  act(state, 1, { type: "pon", tiles: optionsFor(state, 1).pon[0] });
+  discard(state, 1, "4p");
+  passAll(state);
+  tsumogiri(state); // seat 2: 4z
+  act(state, 1, { type: "pon", tiles: optionsFor(state, 1).pon[0] });
+  discard(state, 1, "7p");
+  passAll(state);
+  tsumogiri(state); // seat 2: 5z
+  passAll(state);
+  tsumogiri(state); // seat 3: 3z, the last wind
+  act(state, 1, { type: "pon", tiles: optionsFor(state, 1).pon[0] });
+  discard(state, 1, "2s");
+  passAll(state);
+  return state;
+}
+
+test("pao: a self-drawn big four winds pays the whole double yakuman from the seat that fed the last wind", () => {
+  const state = daisuushii("5z5z5z9m", { honba: 1 });
+  assert.equal(state.pao[1], 3);
+  until(state, 1);
+  act(state, 1, { type: "tsumo" });
+  const win = state.result.wins[0];
+  assert.deepEqual(win.yaku, [{ key: "daisuushii", han: 26 }]);
+  assert.equal(win.yakuman, 2);
+  assert.equal(win.pao, 3);
+  // A non-dealer's double yakuman by self-draw: 32,000 from the dealer and 16,000 from each other seat, 64,000, all from seat 3.
+  assert.deepEqual(state.result.deltas, [0, 64300, 0, -64300]);
+});
+
+test("pao: a big four winds won on a third player's discard is split between that player and the feeder", () => {
+  const state = daisuushii("5z5z9m");
+  until(state, 0);
+  discard(state, 0, "9m");
+  act(state, 1, { type: "ron" });
+  // 64,000 by ron: half from the discarder, half from the seat that fed the last wind.
+  assert.deepEqual(state.result.deltas, [-32000, 64000, 0, -32000]);
 });
 
 

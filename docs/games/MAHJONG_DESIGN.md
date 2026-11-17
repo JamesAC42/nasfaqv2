@@ -53,8 +53,10 @@ to guess.
   discard that follows (or before the next kan, or before scoring if the replacement tile wins).
 - **Four kans:** a fifth kan is never allowed. If the four belong to more than one player the hand is
   an abortive draw once the fourth kan's discard goes by.
-- **Robbing a kan:** an added kan can be won on (chankan). A closed kan can't, not even for thirteen
-  orphans.
+- **Robbing a kan:** an added kan can be won on (chankan). A closed kan can be won on only by thirteen
+  orphans waiting on that tile (no other hand can, nor goes furiten by it). A robbed kan never
+  happens: it isn't counted, its indicator doesn't turn and no replacement tile is drawn. Passing on
+  it is furiten like passing on a discard.
 - **Kan in riichi:** only a closed kan of the tile just drawn, and only when it doesn't change what
   the hand waits on or how it reads.
 - No kan when the wall is empty, and nothing but ron on the last discard.
@@ -76,9 +78,10 @@ to guess.
   - a tile you were waiting on was discarded this go-around and you didn't win on it, until your next
     discard;
   - in riichi, a tile you were waiting on went by: for the rest of the hand.
-- **Several winners.** If two or three players win on the same discard, every one of them is paid
-  (no head bump, and no draw for three). Each gets the honba bonus; the riichi sticks on the table go
-  to the winner next in turn after the discarder.
+- **Two winners.** If two players win on the same discard, both are paid (no head bump). Each gets
+  the honba bonus; the riichi sticks on the table go to the winner next in turn after the discarder.
+- **Three winners** on the same tile (sanchahou) is an abortive draw, once all three have declared.
+  A riichi declared on that tile isn't paid.
 - **Responsibility (pao).** If you feed the pon or open kan that completes a visible big three
   dragons or big four winds, you pay the whole of a self-drawn win and half of a win on someone
   else's discard.
@@ -93,7 +96,8 @@ to guess.
   counts as a draw for the deal and the counters.
 - **Abortive draws:** nine different terminals and honors in your first draw with no calls before it
   (your choice); the same wind discarded by all four on the first go-around; all four in riichi; four
-  kans by more than one player. No points move; the dealer stays and a counter is added.
+  kans by more than one player; three players winning on the same tile. No points move and the
+  riichi sticks stay on the table; the dealer stays and a counter is added.
 
 ### Yaku
 
@@ -107,9 +111,12 @@ Open hands lose one han where marked (−1), and can't use the ones marked close
 | 6 | Full flush: chinitsu (−1) |
 | Yakuman | Thirteen orphans (kokushi musou), Four concealed triplets (suuankou), Big three dragons (daisangen), Little four winds (shousuushii), Big four winds (daisuushii), All honors (tsuuiisou), All terminals (chinroutou), All green (ryuuiisou), Nine gates (chuuren poutou), Four kans (suukantsu), Blessing of heaven (tenhou), Blessing of earth (chiihou) |
 
-- Every yakuman is worth one limit; different yakuman in one hand add up. There are no double
-  yakuman for special waits.
-- 13 han or more from ordinary yaku and dora counts as a yakuman (kazoe).
+- Every yakuman is worth one limit, except four **double yakuman** worth two: thirteen orphans on
+  the thirteen-sided wait (all thirteen kinds in hand before the winning tile), four concealed
+  triplets on the single wait (the winning tile finishes the pair), pure nine gates (exactly
+  1112345678999 before the winning tile, the nine-sided wait) and big four winds. Different yakuman
+  in one hand add up. A blessing of heaven reads the dealer's fourteenth tile as the winning tile.
+- 13 han or more from ordinary yaku and dora counts as one yakuman (kazoe), never more.
 - Not used: renhou, open riichi, local yaku, rounding 4 han 30 fu up to mangan.
 
 ### Scoring
@@ -120,11 +127,13 @@ Open hands lose one han where marked (−1), and can't use the ones marked close
   triplet finished by ron counts as open. An open hand worth only 20 counts as 30. Seven pairs is 25.
   Round up to the next 10.
 - **Points:** base = fu × 2^(han + 2), capped: mangan 2,000 (5 han, or 4 han 40 fu, or 3 han 70 fu),
-  haneman 3,000 (6-7), baiman 4,000 (8-10), sanbaiman 6,000 (11-12), yakuman 8,000 each. A
+  haneman 3,000 (6-7), baiman 4,000 (8-10), sanbaiman 6,000 (11-12), yakuman 8,000 each (16,000 for a double). A
   non-dealer's ron pays base × 4, a dealer's base × 6; on a self-draw the dealer pays base × 2 and the
   others base × 1 (everyone base × 2 to a dealer). Each payment rounds up to the next 100.
 - **Honba:** 300 per counter on a ron, 100 from each player on a self-draw.
 - The hand is read the way that scores most.
+
+These rules follow the mainstream online defaults: Mahjong Soul's ranked rules, and Tenhou's where Mahjong Soul's aren't documented (three winners on one tile draw the hand).
 
 ## 2. The table
 

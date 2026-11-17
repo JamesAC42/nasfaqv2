@@ -16,7 +16,7 @@ import type {
   YakuSight,
   YakuSightStatus,
 } from "@/app/lib/games/mahjong/types";
-import { scoreText, yakuInfo, yakuName } from "@/app/lib/games/mahjong/yaku";
+import { scoreText, yakuInfo, yakumanOf, yakuName } from "@/app/lib/games/mahjong/yaku";
 
 // Plain-English wording for every code api/src/services/games/mahjong/coach.js can send. The server sends
 // data and reason codes, never prose. Each table below is a Record over a union copied from coach.js, so
@@ -137,7 +137,7 @@ export function sightLabel(entry: YakuSight, shanten: number): { name: string; n
 // ── Win previews ────────────────────────────────────────────────────────────
 /** "2 han 30 fu, about 2,000 points". */
 export function previewScore(preview: WinPreview): string {
-  const base = scoreText({ han: preview.han, fu: preview.fu, limit: preview.limit, yakuman: 0 });
+  const base = scoreText({ han: preview.han, fu: preview.fu, limit: preview.limit, yakuman: yakumanOf(preview.limit, preview.han) });
   return preview.points ? `${base}, about ${num(preview.points)} points` : base;
 }
 
@@ -160,7 +160,7 @@ const EFFECT_TEXT: Record<EffectCode, (e: CallEffect) => string> = {
   uses_red_five: () => "Uses your red five, a bonus tile.",
   wins_hand: (e) => {
     const how = e.tsumo ? "You win by drawing it (tsumo)" : "You win on that discard (ron)";
-    const score = e.limit || e.han ? scoreText({ han: e.han ?? 0, fu: e.fu ?? 0, limit: e.limit ?? null, yakuman: 0 }) : "";
+    const score = e.limit || e.han ? scoreText({ han: e.han ?? 0, fu: e.fu ?? 0, limit: e.limit ?? null, yakuman: yakumanOf(e.limit, e.han ?? 0) }) : "";
     const names = Array.isArray(e.yaku) ? e.yaku.map(yakuName).join(", ") : "";
     return `${how}${score ? `: ${score}` : ""}${e.points ? `, about ${num(e.points)} points` : ""}${names ? `. Yaku: ${names}` : ""}.`;
   },
