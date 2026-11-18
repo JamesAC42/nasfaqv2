@@ -354,6 +354,7 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
   // The highest the figure may reach and stay in the frame, a little under its top edge.
   const ceiling = frameTop(aspect, spot.p[0], spot.p[2]) - 1.5 - anchorY;
   const outer = seat === 1 ? 1 : seat === 3 ? -1 : 0;
+  const lean = seat === 2 ? 0.6 : 0.6 * narrowness(aspect);
 
   const material = useMemo(
     () =>
@@ -400,14 +401,16 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
     const g = group.current;
     const mesh = plane.current;
     if (!g || !mesh) return;
-    // Face the lens (side players turned partway toward the middle, see portraitSpot) and lean back part
-    // of the way toward it so a steep phone camera doesn't see the cutouts squashed.
+    // Face the lens (side players turned partway toward the middle, see portraitSpot), standing upright.
+    // A steep phone camera would see them squashed, so there they lean back part of the way toward it;
+    // the player across always does, as they face the lens square on and a lean only shortens them.
+    // (On a side player, turned off the lens, a lean shows as a tilt away from the table.)
     const camera = state.camera;
     const dx = camera.position.x - g.position.x;
     const dz = camera.position.z - g.position.z;
     const dy = camera.position.y - g.position.y;
     const win = fx.seat[seat];
-    g.rotation.set(-Math.atan2(dy, Math.hypot(dx, dz)) * 0.6, portraitYaw(camera.position.x, camera.position.z, g.position.x, g.position.z, spot.turn), 0, "YXZ");
+    g.rotation.set(-Math.atan2(dy, Math.hypot(dx, dz)) * lean, portraitYaw(camera.position.x, camera.position.z, g.position.x, g.position.z, spot.turn), 0, "YXZ");
     g.scale.setScalar(1 + 0.05 * win);
 
     const f = fade.current;
