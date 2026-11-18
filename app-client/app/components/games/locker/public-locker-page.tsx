@@ -158,7 +158,7 @@ export function PublicLockerPage({ username }: { username: string }) {
                   rarity={prize.rarity}
                   imageUrl={prize.imageUrl}
                   equipped={wearing.has(prize.key)}
-                  meta={prize.pulls > 1 ? `×${prize.pulls} pulled` : "Pulled once"}
+                  meta={prize.pulls > 1 ? `Pulled ${prize.pulls}×` : "Pulled once"}
                 />
               ))}
             </ul>

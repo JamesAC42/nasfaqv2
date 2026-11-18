@@ -172,7 +172,16 @@ function MyLocker({ username, pictureUrl, color, aside }: { username: string; pi
     const set = setRewardOf(cosmetic);
     const pulls = pullsByKey.get(cosmetic.cosmetic_key) ?? 0;
     const onMarket = set ? null : market.get(cosmetic.cosmetic_key);
-    const pulled = pulls > 1 ? `×${pulls} pulled` : pulls === 1 ? "Pulled once" : null;
+    // A player holds one of each item: repeat pulls became shards, so say so rather than show a count
+    // that reads like copies held.
+    const pulled =
+      pulls > 1 ? (
+        <span title={`You hold one. The other ${pulls - 1} pull${pulls === 2 ? "" : "s"} became shards.`}>
+          Pulled {pulls}× · {pulls - 1} → shards
+        </span>
+      ) : pulls === 1 ? (
+        "Pulled once"
+      ) : null;
     return (
       <CosmeticTile
         key={cosmetic.id}

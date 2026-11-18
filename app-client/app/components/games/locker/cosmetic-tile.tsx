@@ -24,7 +24,7 @@ type Props = {
   setReward?: { unit: string; tier: "roster" | "spotlight" } | null;
   equipped?: boolean;
   locked?: boolean;
-  /** Small mono line under the name ("×3 pulled", "Equipped"). */
+  /** Small mono line under the name ("Pulled 3× · 2 → shards", "Equipped"). */
   meta?: ReactNode;
   action?: ReactNode;
   error?: string | null;
