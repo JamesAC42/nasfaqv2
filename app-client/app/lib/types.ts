@@ -1478,7 +1478,7 @@ export type ChannelLivestreamBundle = {
   upcoming: LivestreamItem[];
 };
 
-/** A player's place on their oshi's oshiboard (leaderboard rows, behind the oshiboard-standing flag). */
+/** A player's place on their oshi's oshiboard (leaderboard rows). */
 export type OshiboardStanding = {
   symbol: string;
   display_name: string;
@@ -1494,7 +1494,7 @@ export type LeaderboardEntry = {
   username: string;
   profile_picture_url: string | null;
   profile_color: string | null;
-  /** Null when they're on no board; missing for viewers without the flag. */
+  /** Null when they're on no board. */
   oshiboard_standing?: OshiboardStanding | null;
   equipped?: Equipped;
   equipped_hat: {

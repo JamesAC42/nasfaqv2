@@ -19,10 +19,6 @@ const router = express.Router();
 // windows doesn't do that again each time. Shorter than the signed-out board's 15 s.
 const VIEWER_BOARD_TTL_SECONDS = 5;
 
-// Each row's place on the player's oshiboard (oshiboard_standing). Only looked up for viewers with
-// the flag, and the answer is part of every cache key, so a copy with it never reaches anyone else.
-const OSHIBOARD_STANDING = "oshiboard-standing";
-
 function parseLimit(value, fallback = 25) {
   const parsed = Number.parseInt(String(value ?? fallback), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
@@ -162,25 +158,20 @@ router.get("/", async (req, res, next) => {
     const page = parsePage(req.query.page, 1);
     const scope = parseScope(req.query.scope);
     const window = parseWindow(req.query.window);
-    const withOshiboard = features.isEnabled(OSHIBOARD_STANDING, req.ctx.user);
-    const oshiKey = withOshiboard ? "osb" : "-";
     // Signed-out visitors (the front page's top five) all see the same board: 15s cache.
     if (!req.ctx.user && scope === "global") {
-      await sendCachedJson(req, res, `leaderboard:${window}:${page}:${limit}:${oshiKey}`, {
+      await sendCachedJson(req, res, `leaderboard:${window}:${page}:${limit}`, {
         ttlSeconds: 15,
         memoMs: 3000,
-        features: true,
-        load: () => netWorth.listLeaderboardBundle(req.ctx.pool, { viewerUserId: null, scope, window, page, limit, withOshiboard }),
+        load: () => netWorth.listLeaderboardBundle(req.ctx.pool, { viewerUserId: null, scope, window, page, limit, withOshiboard: true }),
       });
       return;
     }
-    const audience = features.audienceOf(req.ctx.user);
-    features.viewerVaries(res);
     // Global only: friends and rivals boards change the moment you add someone.
-    const cacheKey = req.ctx.user && scope === "global" ? `leaderboard:viewer:${req.ctx.user.id}:${window}:${page}:${limit}:${oshiKey}` : null;
+    const cacheKey = req.ctx.user && scope === "global" ? `leaderboard:viewer:${req.ctx.user.id}:${window}:${page}:${limit}` : null;
     if (cacheKey) {
       const cached = await getCachedJson(req.ctx.redis, cacheKey).catch(() => null);
-      if (cached) return res.json(features.forAudience(cached, audience));
+      if (cached) return res.json(cached);
     }
     const bundle = await netWorth.listLeaderboardBundle(req.ctx.pool, {
       viewerUserId: req.ctx.user?.id || null,
@@ -188,10 +179,10 @@ router.get("/", async (req, res, next) => {
       window,
       page,
       limit,
-      withOshiboard,
+      withOshiboard: true,
     });
     if (cacheKey) await setCachedJson(req.ctx.redis, cacheKey, bundle, VIEWER_BOARD_TTL_SECONDS).catch(() => {});
-    res.json(features.forAudience(bundle, audience));
+    res.json(bundle);
   } catch (error) {
     next(error);
   }

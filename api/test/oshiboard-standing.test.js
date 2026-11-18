@@ -4,12 +4,10 @@ const express = require("express");
 const { Pool } = require("pg");
 const { applySchema } = require("../src/migrations");
 const netWorth = require("../src/services/netWorth");
-const features = require("../src/features");
 
-// Oshiboard standing on the leaderboard, behind the oshiboard-standing flag: each row's place on the
-// player's oshi's oshiboard (ranked over the whole board, as the board and the profile rank it), null
-// for players on no board, and only sent to viewers with the flag. Needs CHAT_TEST_DATABASE_URL (a
-// local server) and makes its own database.
+// Oshiboard standing on the leaderboard: each row's place on the player's oshi's oshiboard (ranked over
+// the whole board, as the board and the profile rank it), or null for players on no board, for signed-in
+// players and visitors alike. Needs CHAT_TEST_DATABASE_URL (a local server) and makes its own database.
 const databaseUrl = process.env.CHAT_TEST_DATABASE_URL;
 
 async function freshDatabase(name) {
@@ -112,7 +110,7 @@ test("oshiboard standing on the leaderboard", { skip: !databaseUrl, timeout: 180
     assert.ok(!("oshiboard_standing" in bundle.me));
   });
 
-  await t.test("the route: flagged viewers only, cached apart", async () => {
+  await t.test("the route: every board, for players and visitors", async () => {
     const leaderboard = require("../src/routes/leaderboard");
     const app = express();
     app.use((req, _res, next) => {
@@ -126,35 +124,13 @@ test("oshiboard standing on the leaderboard", { skip: !databaseUrl, timeout: 180
     t.after(() => server.close());
     const get = async (path, userId) => {
       const response = await fetch(`http://127.0.0.1:${server.address().port}/api/leaderboard${path}`, { headers: userId ? { "x-test-user": String(userId) } : {} });
-      return { cache: response.headers.get("cache-control"), body: await response.json() };
+      return response.json();
     };
     const standings = (body) => body.entries.filter((entry) => entry.oshiboard_standing).length;
-    const carries = (body) => body.entries.some((entry) => "oshiboard_standing" in entry);
-
-    const staff = features.override({ "oshiboard-standing": "staff" });
-    try {
-      const admin = await get("/?limit=100", boss);
-      assert.equal(standings(admin.body), 5);
-      assert.equal(admin.cache, "private, no-cache");
-      for (const scope of ["global", "friends"]) {
-        assert.equal(carries((await get(`/?limit=100&scope=${scope}`, top)).body), false, `no standings for players (${scope})`);
-      }
-      assert.equal(carries((await get("/?limit=100")).body), false, "nor for visitors");
-    } finally {
-      staff();
-    }
-    const on = features.override({ "oshiboard-standing": "on" });
-    try {
-      assert.equal(standings((await get("/?limit=100", top)).body), 5, "on: players");
-      assert.equal(standings((await get("/?limit=100")).body), 5, "on: visitors");
-    } finally {
-      on();
-    }
-    const off = features.override({ "oshiboard-standing": "off" });
-    try {
-      assert.equal(carries((await get("/?limit=100", boss)).body), false, "off: nobody");
-    } finally {
-      off();
-    }
+    assert.equal(standings(await get("/?limit=100", top)), 5, "players");
+    assert.equal(standings(await get("/?limit=100")), 5, "visitors");
+    assert.equal(standings(await get("/?limit=100&scope=friends", top)), 1, "a friends board with no friends: just you");
+    const mine = await get("/?limit=100", third);
+    assert.equal(mine.me.oshiboard_standing.rank, 3);
   });
 });

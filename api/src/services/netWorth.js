@@ -177,7 +177,7 @@ function mapLeaderboardEntry(row, {
     achievements: decoration?.achievements || [],
     equipped_hat: decoration?.equipped_hat || null,
     equipped: decoration?.equipped || {},
-    // Only when asked for (withOshiboard); the oshiboard-standing flag lists it, so forAudience drops it.
+    // Each player's place on their oshi's oshiboard, or null. Only when asked for (withOshiboard).
     ...(decoration && "oshiboard_standing" in decoration ? { oshiboard_standing: decoration.oshiboard_standing } : {}),
     streaks: decoration?.streaks || {
       current_streak_days: 0,

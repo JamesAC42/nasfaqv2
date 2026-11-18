@@ -1,5 +1,0 @@
-{
-  "state": "staff",
-  "description": "Oshiboard standing: a waving standard in the profile header for a player on their oshi's oshiboard (bigger the higher they place, the podium gets metal trim and an aura, first place glows), and a small still one beside their name on the leaderboard. The profile reads the oshiboard place it already shows; the leaderboard's entries carry oshiboard_standing only for viewers with the flag.",
-  "fields": ["oshiboard_standing"]
-}
