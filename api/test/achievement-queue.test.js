@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { Pool } = require("pg");
-const { advanceStreakState, buildStreakStateFromTradeDays } = require("../src/services/achievements/streaks");
+const { advanceStreakState, buildStreakStateFromTradeDays, liveStreakDays } = require("../src/services/achievements/streaks");
 
 // Streaks and achievements after fills are checked from a queue, a player at a time, once per
 // live-order batch with all of that player's fills (services/achievements/index.js). First, the
@@ -39,6 +39,15 @@ test("folding trade days into a streak matches a rebuild from the whole history"
   }
   // A day before the streak's last one can't be folded in: the caller rebuilds instead.
   assert.equal(advanceStreakState(buildStreakStateFromTradeDays([dayKey(3)]), [dayKey(2)]), null);
+});
+
+test("a streak shows as over once a whole day goes by without a trade", () => {
+  const row = (days, last) => ({ current_streak_days: days, last_trade_day: last });
+  assert.equal(liveStreakDays(row(5, "2026-11-16"), "2026-11-16"), 5, "traded today");
+  assert.equal(liveStreakDays(row(5, "2026-11-15"), "2026-11-16"), 5, "traded yesterday: today can still extend it");
+  assert.equal(liveStreakDays(row(5, "2026-11-14"), "2026-11-16"), 0, "missed yesterday");
+  assert.equal(liveStreakDays(row(0, null), "2026-11-16"), 0);
+  assert.equal(liveStreakDays(null, "2026-11-16"), 0);
 });
 
 test("a batch of fills still awards every achievement, once per player", { skip: !databaseUrl, timeout: 180_000 }, async (t) => {
@@ -81,7 +90,7 @@ test("a batch of fills still awards every achievement, once per player", { skip:
   );
   const assetId = Object.fromEntries(assets.map((row) => [row.symbol, Number(row.id)]));
   const users = {};
-  for (const name of ["alice", "bob", "carol", "dave", "erin"]) {
+  for (const name of ["alice", "bob", "carol", "dave", "erin", "frank", "gina", "hank"]) {
     const { rows } = await pool.query(
       `INSERT INTO market.users (username, username_normalized, email, email_verified, password_hash, password_salt, password_params_json)
        VALUES ($1, $1, $1 || '@example.test', true, 'x', 'x', '{}') RETURNING id`,
@@ -194,4 +203,52 @@ test("a batch of fills still awards every achievement, once per player", { skip:
   achievements.queueTradeFill(pool, { userId: users.erin, ...erinYesterday });
   await achievements.tradeFillsIdle();
   assert.equal((await streak("erin")).current_streak_days, 2);
+
+  // ── Trade days are New York days ──
+  // Nov 2 at 10:00 ET, Nov 3 at 22:00 ET (Nov 4 03:00 UTC), Nov 4 at 10:00 ET: three New York days
+  // in a row, though in UTC days Nov 3 has no trade. Each row starts as a streak counted in UTC days.
+  const eveningTrader = async (name) => {
+    for (const ts of ["2026-11-02T15:00:00Z", "2026-11-04T03:00:00Z", "2026-11-04T15:00:00Z"]) {
+      const { rows: order } = await pool.query(
+        `INSERT INTO market.trade_orders (user_id, asset_id, side, order_type, status, requested_quantity, filled_quantity, requested_at)
+         VALUES ($1, $2, 'buy', 'market', 'filled', 1, 1, $3) RETURNING id`,
+        [users[name], assetId.AAA, ts]
+      );
+      await pool.query(
+        `INSERT INTO market.trade_fills (order_id, user_id, asset_id, side, price, quantity, gross_cash, fee_cash, net_cash, counterparty_type, ts)
+         VALUES ($1, $2, $3, 'buy', 100, 1, 100, 1, -101, 'treasury', $4)`,
+        [order[0].id, users[name], assetId.AAA, ts]
+      );
+    }
+    await pool.query(
+      `INSERT INTO market.user_trade_streaks (user_id, current_streak_days, longest_streak_days, last_trade_day, streak_started_day)
+       VALUES ($1, 1, 1, '2026-11-04', '2026-11-04')`,
+      [users[name]]
+    );
+  };
+  const days = async (name) =>
+    (await pool.query(`SELECT current_streak_days, longest_streak_days, last_trade_day::text, day_basis FROM market.user_trade_streaks WHERE user_id = $1`, [users[name]])).rows[0];
+  const threeInNewYork = { current_streak_days: 3, longest_streak_days: 3, last_trade_day: "2026-11-04", day_basis: "new_york" };
+
+  // Reading a row counted in UTC days (a profile view) counts it again.
+  await eveningTrader("frank");
+  const read = await achievements.getUserTradeStreak(pool, users.frank);
+  assert.equal(read.current_streak_days, 3);
+  assert.deepEqual(await days("frank"), threeInNewYork);
+
+  // The startup recount does every row still in UTC days, once.
+  await eveningTrader("gina");
+  assert.equal(await achievements.recountUtcStreaks(pool, { batchSize: 1 }), 1);
+  assert.deepEqual(await days("gina"), threeInNewYork);
+  assert.equal(await achievements.recountUtcStreaks(pool), 0);
+
+  // A fill counted on a row still in UTC days counts the whole history again, and the check after
+  // it awards what that history earns.
+  await eveningTrader("hank");
+  const hankFill = await pastFill(users.hank, "BBB", 0);
+  achievements.queueTradeFill(pool, { userId: users.hank, ...hankFill });
+  await achievements.tradeFillsIdle();
+  assert.equal((await days("hank")).longest_streak_days, 3);
+  assert.equal((await days("hank")).day_basis, "new_york");
+  assert.ok((await earned("hank")).includes("streak_3"));
 });

@@ -20,6 +20,9 @@ channel's base rate comes from its own numbers alone (`fundamentals.js` `compute
 - times a small daily factor only the market knows (within ±2% by default, from a server-side
   secret; `api/src/services/targetNudge.js`), so the base rate can't be calculated exactly from the
   public numbers,
+- times growth of 0.05% a day, compounding from the day the market package went on
+  (`api/src/services/fairValueGrowth.js`, recorded per market date by the regular settlement and
+  applied with the daily factor, after the blending, never inside it),
 - priced against a fixed reference supply of 10,000 shares, so a weekly share change never reprices a
   stock by itself.
 
@@ -37,7 +40,11 @@ strengths that add up to 200%; each tick moves the price that share of the way t
 (over 100% overshoots). Per-stock min/max strengths are editable in the admin tuning page.
 
 **Trading.** Orders queue and fill in 10-minute batches. Buys and sells move the live price; the ticks
-pull it back.
+pull it back. Buys fill at the ask and sells at the bid, 1.5% apart (`spread_bps` 150 on every stock,
+and on new listings). Buys pay no fee. A sale pays the 1% trading fee (`MARKET_TRADING_FEE_RATE`) only
+on the shares it takes from buys filled in the last 24 hours, newest shares first; shares held longer,
+and shares from an IPO, sell free. The rules live in `api/src/services/marketPackage.js` (the
+market-wide `market-package` flag).
 
 **The 180-share limit** (`MARKET_LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL`, default 180):
 - It counts per player, across every stock and both sides together.
@@ -124,7 +131,10 @@ In BBB's order:
    rate over the week's days whose ticks have landed (never a secret one). Dividends pay Credit;
    fees take Credit first, then Cash (`credit.md`). A frozen stock's holders are paid or charged
    too. **Fees can push cash below zero**: a player in the red can't buy until they sell or earn it
-   back. Then part of every Credit balance turns into Cash.
+   back. On top of the ranked dividend or fee, **every holder** of every stock (rookies and the
+   middle included) gets a holder dividend of 0.25% of that same "value" per share, as Credit; the
+   oshi protection never takes it away. Each payout row's `amount` includes it and `holder_amount`
+   is that part alone (`marketPackage.js`). Then part of every Credit balance turns into Cash.
 3. **Max shares** reset from subscriber counts; stocks now over their max start a buyback. Then a
    player left with no shares and no money to buy any gets a little Cash and Credit (the auto-bailout,
    `credit.md`).

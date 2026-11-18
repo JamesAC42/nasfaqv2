@@ -18,6 +18,8 @@ export type SimSettings = {
   dividend: { rate_per_sigma: number; deadzone_sigma: number; cap: number };
   credit_conversion: { rate: number; minimum: number };
   reference_supply: number;
+  /** Whether the market package is on (api marketPackage.js): the fee only on quick sells, fair-value growth, the holder dividend. */
+  market_package?: boolean;
 };
 
 export type SimAsset = {

@@ -45,6 +45,9 @@ function dateLong(value: string) {
 
 const rate = (value: number) => signedPct(value, 2);
 
+/** A per-share amount that can be under a cent (the holder dividend on a cheap stock): "$0.004", else money(). */
+export const centsOrLess = (value: number) => (Math.abs(value) < 1 ? `$${value.toFixed(3)}` : money(value));
+
 /** "3d 14h" or "5h 12m". */
 export function untilText(ms: number) {
   const minutes = Math.max(0, Math.round(ms / 60_000));
@@ -103,6 +106,8 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
   const top = review.top_dividends[0];
   const worst = review.top_fees[0];
   const all = [...review.assets].sort((a, b) => b.rate - a.rate);
+  // The holder dividend (the market package): a review that paid one says its rate.
+  const holderRate = review.holder_dividend_rate ?? 0;
 
   return (
     <>
@@ -111,9 +116,16 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
           <div className={styles.kick}>
             {dateLong(review.eval_date).toUpperCase()} · <Term k="evaluation">WEEKLY EVALUATION</Term> · 00:00 ET
           </div>
-          <h2>{top ? `${top.display_name} pays ${rate(top.rate)} a share; ${review.charging_count} stocks charge fees` : "A flat week: no dividends"}</h2>
+          <h2>{top ? `${top.display_name} pays ${rate(top.rate)} a share; ${review.charging_count} stocks charge fees` : review.holder_dividend_rate ? "A flat week: only what every holder gets" : "A flat week: no dividends"}</h2>
           <p>
-            <b>{money(review.dividends_total)}</b> paid out{review.credit_converted !== undefined ? <> as <Term k="credit">Credit</Term></> : null} to {review.holders_paid.toLocaleString("en-US")} players,{" "}
+            <b>{money(review.dividends_total)}</b> paid out{review.credit_converted !== undefined ? <> as <Term k="credit">Credit</Term></> : null} to {review.holders_paid.toLocaleString("en-US")} players
+            {holderRate ? (
+              <>
+                {" "}
+                (<b className={ui.up}>{rate(holderRate)}</b> of every stock’s price to every holder: {money(review.holder_dividends_total ?? 0)})
+              </>
+            ) : null}
+            ,{" "}
             <b>{money(Math.abs(review.fees_total))}</b> in <Term k="dividend">share fees</Term> from {review.holders_charged.toLocaleString("en-US")}.{" "}
             {top ? (
               <>
@@ -126,7 +138,7 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
                 <StockChip symbol={worst.symbol} /> the worst, charging {money(Math.abs(worst.per_share))} a share
               </>
             ) : null}
-            . {review.flat_count} stocks sat close enough to the middle to pay nothing.
+            . {review.flat_count} stocks sat close enough to the middle to pay {review.holder_dividend_rate ? "only what every holder gets" : "nothing"}.
             {review.credit_converted ? (
               <>
                 {" "}
@@ -170,7 +182,9 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
         <div>
           <span className={ui.label}>Dividends</span>
           <span className={`${ui.kv} ${ui.up}`}>{money(review.dividends_total, { compact: true })}</span>
-          <span className={ui.ks}>{review.paying_count} stocks paying</span>
+          <span className={ui.ks}>
+            {review.paying_count} stocks paying{holderRate ? ` · ${rate(holderRate)} to every holder` : ""}
+          </span>
         </div>
         <div>
           <span className={ui.label}>Share fees</span>
@@ -283,7 +297,14 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
               <span role="cell" className={row.rate > 0 ? ui.up : row.rate < 0 ? ui.down : ui.flat}>
                 {row.rate ? rate(row.rate) : "—"}
               </span>
-              <span role="cell">{row.per_share ? money(row.per_share) : "—"}</span>
+              <span role="cell">
+                {row.per_share ? money(row.per_share) : row.holder_per_share ? null : "—"}
+                {row.holder_per_share ? (
+                  <small className={ui.up} title="The holder dividend every share got">
+                    {row.per_share ? " " : ""}+{centsOrLess(row.holder_per_share)}
+                  </small>
+                ) : null}
+              </span>
               <span role="cell">
                 {row.max_supply_after !== row.max_supply_before ? `${row.max_supply_before.toLocaleString("en-US")} → ` : ""}
                 {row.max_supply_after.toLocaleString("en-US")}
@@ -300,7 +321,7 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
         ) : null}
         <p className={ui.note}>
           How it works: each channel&apos;s value this week against last week, ranked on a bell curve across the market. The middle pays nothing; the rest pay a
-          dividend or charge a fee per share held, up to 10% of the stock&apos;s value. Max shares reset from subscriber count. <Link href="/how-to-play#weekly">How to play →</Link>
+          dividend or charge a fee per share held, up to 10% of the stock&apos;s value. On top of that, every holder gets 0.25% of each stock&apos;s value per share. Max shares reset from subscriber count. <Link href="/how-to-play#weekly">How to play →</Link>
         </p>
       </div>
     </>
@@ -356,8 +377,11 @@ function skippedText(line: MyDividendWeek["lines"][number], rates: Map<string, n
 }
 
 function YourWeek({ week, loading, evalDate, rates, split }: { week: MyDividendWeek | null; loading: boolean; evalDate: string; rates: Map<string, number>; split: boolean }) {
-  const dividends = week?.lines.reduce((sum, line) => sum + Math.max(line.amount, 0), 0) ?? 0;
-  const fees = week?.lines.reduce((sum, line) => sum + Math.min(line.amount, 0), 0) ?? 0;
+  // A line's amount includes its holder dividend (the market package), which is always a dividend
+  // even when the stock's ranked part was a fee.
+  const holderOf = (line: MyDividendWeek["lines"][number]) => Math.max(line.holder_amount ?? 0, 0);
+  const dividends = week?.lines.reduce((sum, line) => sum + Math.max(line.amount - holderOf(line), 0) + holderOf(line), 0) ?? 0;
+  const fees = week?.lines.reduce((sum, line) => sum + Math.min(line.amount - holderOf(line), 0), 0) ?? 0;
   return (
     <div className={`${ui.sec} ${styles.mine}`}>
       <div className={ui.secHead}>
@@ -385,7 +409,8 @@ function YourWeek({ week, loading, evalDate, rates, split }: { week: MyDividendW
               <span key={line.symbol} className={styles.mineRow}>
                 <StockChip symbol={line.symbol} />
                 <small>
-                  {num(line.quantity, 0)} sh × {money(line.per_share)}
+                  {num(line.quantity, 0)} sh{line.per_share || !holderOf(line) ? ` × ${money(line.per_share)}` : ""}
+                  {holderOf(line) ? ` + ${money(holderOf(line))} for holding` : ""}
                 </small>
                 <b className={line.amount > 0 ? ui.up : line.amount < 0 ? ui.down : ui.flat}>{money(line.amount)}</b>
                 {line.oshi_waived ? (
@@ -412,7 +437,7 @@ function NoEvaluationYet({ next, now }: { next: number | null; now: number | nul
         <h2>The first Dividend Review lands Saturday</h2>
         <p>
           Every Saturday at midnight New York time, each channel&apos;s week is ranked against the rest. The top pay a <Term k="dividend">dividend</Term> per share you hold, the
-          bottom charge a fee, the middle nothing. Max shares reset from subscriber count, and any stock left over its max freezes for a <Term k="buyback">buyback</Term>.
+          bottom charge a fee, the middle nothing, and every holder gets 0.25% of each stock&apos;s value per share on top. Max shares reset from subscriber count, and any stock left over its max freezes for a <Term k="buyback">buyback</Term>.
           {next && now ? (
             <>
               {" "}

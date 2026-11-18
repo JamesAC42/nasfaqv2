@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { OshiboardPennant } from "@/app/components/common/oshiboard-flag";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { Medal, type MedalTier } from "@/app/components/common/medal";
 import { CosmeticChip } from "@/app/components/common/cosmetic-chip";
@@ -213,7 +214,11 @@ function PlayersTab() {
                 <span className={styles.stepBody}>
                   <span className={styles.stepRank}>{entry.rank}</span>
                   <span className={styles.stepName}>
-                    {entry.largest_position ? <Oshimark icon={icon(entry.largest_position.symbol)} symbol={entry.largest_position.symbol} size={18} /> : null}
+                    {entry.oshiboard_standing ? (
+                      <OshiboardPennant standing={entry.oshiboard_standing} playerColor={entry.profile_color} />
+                    ) : entry.largest_position ? (
+                      <Oshimark icon={icon(entry.largest_position.symbol)} symbol={entry.largest_position.symbol} size={18} />
+                    ) : null}
                     {entry.username}
                   </span>
                   <span className={styles.stepEq}>{money(entry.total_equity)}</span>
@@ -263,7 +268,10 @@ function PlayersTab() {
               me.neighbors.map((neighbor) => (
                 <Link key={neighbor.user_id} href={`/profile/${encodeURIComponent(neighbor.username)}`}>
                   <span>#{neighbor.rank}</span>
-                  <b>{neighbor.username}</b>
+                  <b>
+                    {neighbor.username}
+                    {neighbor.oshiboard_standing ? <OshiboardPennant standing={neighbor.oshiboard_standing} playerColor={neighbor.profile_color} className={styles.pennant} /> : null}
+                  </b>
                   <em className={neighbor.rank < me.rank ? styles.down : styles.up} title={neighbor.rank < me.rank ? "to pass them" : "your lead"}>
                     {neighbor.gap_abs === null ? "—" : `${neighbor.rank < me.rank ? "−" : "+"}${money(Math.abs(neighbor.gap_abs))}`}
                   </em>
@@ -304,6 +312,7 @@ function PlayersTab() {
                     <Link href={`/profile/${encodeURIComponent(entry.username)}`} className={styles.who}>
                       <PlayerAvatar username={entry.username} pictureUrl={entry.profile_picture_url} color={entry.profile_color} hat={entry.equipped_hat} equipped={entry.equipped} size={26} />
                       <b>{entry.username}</b>
+                      {entry.oshiboard_standing ? <OshiboardPennant standing={entry.oshiboard_standing} playerColor={entry.profile_color} /> : null}
                       {entry.is_me ? <span className={styles.tagMe}>YOU</span> : entry.is_friend ? <span className={styles.tag}>FRIEND</span> : entry.is_rival ? <span className={styles.tagRival}>RIVAL</span> : null}
                     </Link>
                   </td>

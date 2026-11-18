@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Term } from "@/app/components/common/tip";
-import { nextEvaluationAt, untilText } from "@/app/components/market/dividends-tab";
+import { centsOrLess, nextEvaluationAt, untilText } from "@/app/components/market/dividends-tab";
 import { useApi } from "@/app/components/stock/use-stock-data";
 import { money, signedPct } from "@/app/lib/time";
 import type { MarketAsset, MyDividendWeek } from "@/app/lib/types";
@@ -19,6 +19,9 @@ type Review = {
   per_share: number;
   growth_pct: number | null;
   held: number;
+  /** The holder dividend per share (the market package), on top of per_share; 0 when none. */
+  holder_per_share: number;
+  /** Everything the review paid or charged on this stock, the holder dividend included. */
   paid: number;
   max_supply_before: number | null;
   max_supply_after: number | null;
@@ -36,6 +39,7 @@ const normalize = (raw: Record<string, unknown>): Review[] =>
     per_share: num(row.per_share),
     growth_pct: row.growth_pct === null || row.growth_pct === undefined ? null : num(row.growth_pct),
     held: num(row.held),
+    holder_per_share: num(row.holder_per_share),
     paid: num(row.paid),
     max_supply_before: row.max_supply_before === null || row.max_supply_before === undefined ? null : num(row.max_supply_before),
     max_supply_after: row.max_supply_after === null || row.max_supply_after === undefined ? null : num(row.max_supply_after),
@@ -103,6 +107,7 @@ export function DividendsSection({ asset }: { asset: MarketAsset }) {
               <span className={styles.kpiD}>
                 {last.rate > 0 ? "dividend" : last.rate < 0 ? "share fee" : "in the quiet middle"}
                 {last.rate ? ` · ${money(Math.abs(last.per_share))} a share` : ""}
+                {last.holder_per_share ? ` · +${centsOrLess(last.holder_per_share)} a share to every holder` : ""}
               </span>
             </div>
             <div>

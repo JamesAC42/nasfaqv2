@@ -578,6 +578,17 @@ async function main() {
     stateClient.release();
   }
 
+  // Trade streaks moved from UTC days to New York days (2026-11): the process that runs settlement
+  // recounts any row still in UTC days, in the background. After the first run it finds none.
+  if ((process.env.MARKET_SETTLEMENT_SCHEDULER_ENABLED || "true").toLowerCase() !== "false") {
+    achievements
+      .recountUtcStreaks(pool)
+      .then((recounted) => {
+        if (recounted) console.log(`trade streaks: recounted ${recounted} in New York days`);
+      })
+      .catch((error) => console.warn("trade streak recount failed:", String(error?.message || error)));
+  }
+
   // Redis is required for livestream endpoints.
   redis = await createRedis(cfg.redisUrl, cfg.redisPassword);
 

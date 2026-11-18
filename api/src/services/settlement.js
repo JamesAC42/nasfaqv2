@@ -5,6 +5,8 @@ const supply = require("./marketSupply");
 const netWorth = require("./netWorth");
 const { publishMarketEvent } = require("./marketEvents");
 const targetNudge = require("./targetNudge");
+const fairValueGrowth = require("./fairValueGrowth");
+const marketPackage = require("./marketPackage");
 const DEFAULT_PERSISTENT_DAILY_DECAY = 0.9;
 const DEFAULT_TRANSIENT_SETTLEMENT_DECAY = 0.1;
 const DEFAULT_LIQUIDITY_DEPTH_FLOOR = 2000;
@@ -276,8 +278,9 @@ function buildSettledAssetState(assetRow, previousState, { marketDate = null, ga
   }
 
   // Priced against a fixed reference supply, so the weekly max-share reset never reprices a stock.
-  // The day's fair value also carries the server-side daily factor (targetNudge.js), applied once
-  // here on top of the smoothed fundamental. The raw value stays as the formula gives it.
+  // The day's fair value also carries the server-side daily factor (targetNudge.js) and the market
+  // package's growth (fairValueGrowth.js), applied once here on top of the smoothed fundamental. The
+  // raw value stays as the formula gives it.
   const smoothedPrice = toNumber(normalizeFundamentalToPrice(assetRow.fundamental_value_smoothed, supply.REFERENCE_SUPPLY), 0);
   const fairValue = toNumber(gate.apply(smoothedPrice, assetRow.youtube_channel_id, marketDate), 0);
   const fairValueRaw = toNumber(normalizeFundamentalToPrice(assetRow.fundamental_value_raw, supply.REFERENCE_SUPPLY), 0);
@@ -490,7 +493,13 @@ async function settleMarketDay(pool, { marketDate, sourceMarketDate = null, forc
 
     // A forced settlement replays a day (a rebuild, "Regenerate a day") and only reads the activation
     // date; a regular one records it the first time it runs with the secret set.
-    const gate = force ? await targetNudge.loadGate(client, { inTransaction: true }) : await targetNudge.recordGate(client, marketDate);
+    const nudgeGate = force ? await targetNudge.loadGate(client, { inTransaction: true }) : await targetNudge.recordGate(client, marketDate);
+    // The market package's growth (fairValueGrowth.js) rides on the same gate: a regular settlement
+    // records the day's growth, a forced replay reads what was recorded. A regular one also moves the
+    // spreads to the package's (or back) before the day's quotes are worked out (marketPackage.js).
+    const growth = force ? await fairValueGrowth.loadGrowth(client, { inTransaction: true }) : await fairValueGrowth.recordGrowth(client, marketDate, marketPackage.growthPerDay());
+    const gate = fairValueGrowth.combine(nudgeGate, growth);
+    if (!force) await marketPackage.syncSpreads(client);
     const assets = await listAssetsForSettlement(client, resolvedSourceMarketDate);
     const settledStates = [];
     const previousStatesByAssetId = new Map();

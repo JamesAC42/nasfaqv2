@@ -18,6 +18,7 @@ Each flag is one JSON file in this folder, named after the flag: `tick-reasons.j
   - `on`: everyone sees it.
 - **`description`**: what's behind the flag, for whoever turns it on.
 - **`fields`** (optional): payload keys that only viewers with the flag get. The API drops them, at any depth, from every payload sent through `forAudience` or a cached response with `features: true`. Pick key names that only this feature uses.
+- **`market`** (optional, `true`): a market-wide flag, for a change to the market itself (prices, fees, payouts) that has to be the same for everyone. It is only `off` or `on`, never `staff` (admins can't trade under rules nobody else has, and background jobs have no user). Read it with `marketOn("my-flag")`; the client's `useFeature` gives the same answer. Preview one on the admin Market sim page instead. `market-package` is one.
 
 A misnamed file, bad JSON or an unknown state stops the API at startup, and `api/test/features.test.js` fails on it in CI.
 

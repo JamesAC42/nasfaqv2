@@ -268,8 +268,8 @@ export function IpoFaq({ event, now, signedIn }: { event: IpoEvent; now: number 
       q: "Does a new stock pay dividends?",
       a: (
         <>
-          Not at first. For its first {IPO_ROOKIE_DAYS} days (four Saturday reviews) a new listing pays no dividend and charges no share fee, and its max shares don’t drop below what
-          players hold. After that it’s ranked with every other stock.
+          Only the 0.25% every holder gets at first. For its first {IPO_ROOKIE_DAYS} days (four Saturday reviews) a new listing isn’t ranked, so it pays no dividend for a good week
+          and charges no share fee for a bad one, and its max shares don’t drop below what players hold. After that it’s ranked with every other stock.
         </>
       ),
     },

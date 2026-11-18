@@ -5,8 +5,8 @@
 // The day is a New York day, the one market.user_active_days counts (auth.js): today, yesterday, the
 // reset and checkin_day all turn over at 00:00 ET, across DST and whatever the pool's time zone (UTC,
 // db.js). The streak is counted here from the player's fills in those same days, and writes nothing.
-// It isn't market.user_trade_streaks: trade streak achievements keep their UTC days
-// (achievements/streaks.js), so the two counts can differ by a day. A check-in pays for the streak
+// market.user_trade_streaks (the profile and the streak achievements, achievements/streaks.js)
+// counts the same New York days. A check-in pays for the streak
 // through yesterday: trading today grows tomorrow's check-in, not today's, so claiming before or after
 // the day's first trade pays the same. Missing a day of trading takes the next check-in back to the
 // base. The unique key on (user_id, checkin_day) is what allows one claim per player per day. Claims

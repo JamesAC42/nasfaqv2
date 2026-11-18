@@ -38,6 +38,7 @@ import {
   type LeaderboardEntry,
   type LeaderboardMe,
   type LeaderboardNeighbor,
+  type OshiboardStanding,
   type LeaderboardResponse,
   type LeaderboardStats,
   type LivestreamItem,
@@ -1237,7 +1238,7 @@ export function normalizePortfolio(value: Record<string, unknown>): PortfolioSum
     held_cash: Number(toNumber(value.held_cash) || 0),
     order_hold_margin: toNumber(value.order_hold_margin) ?? 0.05,
     credit_balance: Number(toNumber(value.credit_balance) || 0),
-    economy: value.economy && typeof value.economy === "object" ? (value.economy as PortfolioSummary["economy"]) : null,
+    economy: value.economy && typeof value.economy === "object" ? normalizeEconomy(value.economy as Record<string, unknown>) : null,
     total_market_value: Number(toNumber(value.total_market_value) || 0),
     total_unrealized_pnl: Number(toNumber(value.total_unrealized_pnl) || 0),
     total_equity: Number(toNumber(value.total_equity) || 0),
@@ -1251,7 +1252,25 @@ export function normalizePortfolio(value: Record<string, unknown>): PortfolioSum
       market_value: Number(toNumber(item.market_value) || 0),
       unrealized_pnl: Number(toNumber(item.unrealized_pnl) || 0),
       buyback_offer_shares: toNumber(item.buyback_offer_shares),
+      // Only while the fee is on quick sells alone; absent stays absent (the ticket then charges every share).
+      ...(item.fee_shares !== undefined && item.fee_shares !== null ? { fee_shares: Math.max(0, Number(toNumber(item.fee_shares) || 0)) } : {}),
+      ...(item.fee_free_at !== undefined ? { fee_free_at: item.fee_free_at ? String(item.fee_free_at) : null } : {}),
     })),
+  };
+}
+
+/** The Credit rules and the fee rule in force. A payload without the fee rule leaves it out (the site then goes by the market-package flag). */
+function normalizeEconomy(value: Record<string, unknown>): NonNullable<PortfolioSummary["economy"]> {
+  const economy = { ...value } as unknown as NonNullable<PortfolioSummary["economy"]>;
+  delete economy.fee_rate;
+  delete economy.fee_on;
+  delete economy.quick_sell_hours;
+  const feeRate = toNumber(value.fee_rate);
+  const feeOn = value.fee_on === "quick_sells" || value.fee_on === "all_trades" ? value.fee_on : null;
+  return {
+    ...economy,
+    ...(feeRate !== null ? { fee_rate: feeRate } : {}),
+    ...(feeOn ? { fee_on: feeOn, quick_sell_hours: feeOn === "quick_sells" ? (toNumber(value.quick_sell_hours) ?? 24) : null } : {}),
   };
 }
 
@@ -1752,6 +1771,21 @@ export function normalizeV1Account(value: unknown): V1Account | null {
   };
 }
 
+function normalizeOshiboardStanding(value: unknown): OshiboardStanding | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const rank = Number(row.rank || 0);
+  if (!rank || !row.symbol) return null;
+  return {
+    symbol: String(row.symbol),
+    display_name: String(row.display_name || row.symbol),
+    icon: row.icon ? String(row.icon) : null,
+    color: row.color ? String(row.color) : null,
+    rank,
+    member_count: Number(row.member_count || 0),
+  };
+}
+
 export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): LeaderboardEntry[] {
   return rows.map((row, index) => ({
     user_id: Number(row.user_id || row.id || 0),
@@ -1759,6 +1793,7 @@ export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): Lead
     username: String(row.username || row.label || "user"),
     profile_picture_url: row.profile_picture_url ? String(row.profile_picture_url) : null,
     profile_color: row.profile_color ? String(row.profile_color) : null,
+    oshiboard_standing: normalizeOshiboardStanding(row.oshiboard_standing),
     equipped: normalizeEquipped(row.equipped),
     equipped_hat:
       row.equipped_hat && typeof row.equipped_hat === "object"
@@ -1818,6 +1853,7 @@ function normalizeLeaderboardNeighbor(value: Record<string, unknown>): Leaderboa
     gap_abs: toNumber(value.gap_abs),
     profile_picture_url: value.profile_picture_url ? String(value.profile_picture_url) : null,
     profile_color: value.profile_color ? String(value.profile_color) : null,
+    oshiboard_standing: normalizeOshiboardStanding(value.oshiboard_standing),
     equipped_hat:
       value.equipped_hat && typeof value.equipped_hat === "object"
         ? {

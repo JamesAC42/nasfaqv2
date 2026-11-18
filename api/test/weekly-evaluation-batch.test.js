@@ -8,6 +8,8 @@ const weekly = require("../src/services/weeklyEvaluation");
 const reference = require("./fixtures/weekly-evaluation-reference");
 const pgNumeric = require("../src/services/pgNumeric");
 const economy = require("../src/services/economy");
+// These tests check rules the market package changes (services/marketPackage.js), so they run with it off; market-package.test.js covers it on.
+require("../src/features").override({ "market-package": "off" });
 
 // The batched weekly evaluation against the row-at-a-time one it replaced (frozen in
 // fixtures/weekly-evaluation-reference.js). One realistic market is seeded once, cloned, and each

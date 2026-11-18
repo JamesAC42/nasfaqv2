@@ -1,5 +1,6 @@
 // Keep fill calculations in trading.js; only batch their database I/O here.
 const { ensureUserCashAccount } = require("./portfolioCash");
+const marketPackage = require("./marketPackage");
 
 const LOCK_NOT_AVAILABLE = "55P03";
 
@@ -78,8 +79,13 @@ async function lockChunk(client, orderIds) {
     [orders.map((order) => order.user_id), orders.map((order) => order.asset_id)]
   );
   const { rows: identityRows } = await client.query(`SELECT id, username, profile_color FROM market.users WHERE id = ANY($1::bigint[])`, [userIds]);
+  // The market package: the last day's fills behind each sale, which say what it pays the fee on (read
+  // with the holdings locked, so none land in between).
+  const sells = orders.filter((order) => order.side === "sell").map((order) => [order.user_id, order.asset_id]);
+  const recentFills = marketPackage.isOn() && sells.length ? await marketPackage.loadRecentFills(client, sells) : new Map();
 
   return {
+    recentFills,
     orders,
     assets: new Map(assetRows.map((row) => [Number(row.id), row])),
     buybacks: new Map(buybackRows.map((row) => [Number(row.asset_id), row])),

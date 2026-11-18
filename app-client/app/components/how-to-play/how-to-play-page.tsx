@@ -73,8 +73,8 @@ function Hero() {
             <dd>4</dd>
           </div>
           <div>
-            <dt>Trading fee</dt>
-            <dd>1%</dd>
+            <dt>Fee on buys</dt>
+            <dd>None</dd>
           </div>
         </dl>
         <div className={styles.heroActions}>

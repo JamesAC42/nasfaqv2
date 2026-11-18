@@ -163,7 +163,7 @@ router.get("/", async (req, res, next) => {
       await sendCachedJson(req, res, `leaderboard:${window}:${page}:${limit}`, {
         ttlSeconds: 15,
         memoMs: 3000,
-        load: () => netWorth.listLeaderboardBundle(req.ctx.pool, { viewerUserId: null, scope, window, page, limit }),
+        load: () => netWorth.listLeaderboardBundle(req.ctx.pool, { viewerUserId: null, scope, window, page, limit, withOshiboard: true }),
       });
       return;
     }
@@ -179,6 +179,7 @@ router.get("/", async (req, res, next) => {
       window,
       page,
       limit,
+      withOshiboard: true,
     });
     if (cacheKey) await setCachedJson(req.ctx.redis, cacheKey, bundle, VIEWER_BOARD_TTL_SECONDS).catch(() => {});
     res.json(bundle);

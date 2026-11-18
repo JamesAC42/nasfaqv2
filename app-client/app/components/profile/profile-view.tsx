@@ -8,6 +8,7 @@ import { FaCoins } from "react-icons/fa6";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { Oshimark } from "@/app/components/common/oshimark";
+import { OshiboardBanner, standingLabel, standingOf } from "@/app/components/common/oshiboard-flag";
 import { PlayerAvatar } from "@/app/components/common/player-avatar";
 import { VerificationRequiredNotice, userNeedsEmailVerification } from "@/app/components/common/verification-required-notice";
 import { SiteShell } from "@/app/components/layout/site-shell";
@@ -180,6 +181,8 @@ export function ProfileView({ username }: { username?: string | null }) {
   const verify = isSelf && userNeedsEmailVerification(user);
   // v1 Classic dresses the whole page as the old site, which had no price tape or footer.
   const v1Classic = pageTheme?.pattern === "v1";
+  // On their oshi's oshiboard: a standard hangs in the header. Nothing at all when they aren't.
+  const standing = oshi ? standingOf(profile.oshiboards.find((board) => board.asset.symbol.toUpperCase() === oshi.symbol.toUpperCase())) : null;
 
   return (
     <SiteShell hideRibbon={v1Classic} hideFooter={v1Classic}>
@@ -207,6 +210,7 @@ export function ProfileView({ username }: { username?: string | null }) {
               <span className={styles.bannerScrim} aria-hidden="true" />
             </>
           ) : oshi ? <ArtSlot kind="keyart" symbol={oshi.symbol} icon={oshi.icon} accent={oshiAsset ? talentAccent(oshiAsset.color, theme) : undefined} width={480} className={styles.bannerArt} /> : null}
+          {standing ? <OshiboardBanner standing={standing} playerColor={color} /> : null}
           <div className={styles.idRow}>
             <button type="button" className={styles.avatarBtn} onClick={() => isSelf && setModal("picture")} disabled={!isSelf} aria-label={isSelf ? "Change your icon" : undefined} title={isSelf ? "Change your icon" : undefined}>
               <PlayerAvatar username={profile.username} pictureUrl={profile.profile_picture_url} color={color} equipped={profile.equipped} size={120} className={styles.avatar} />
@@ -219,6 +223,11 @@ export function ProfileView({ username }: { username?: string | null }) {
                 {oshi ? (
                   <Link href={`/stocks/${enc(oshi.symbol)}`} className={styles.oshi} data-peek-stock={oshi.symbol}>
                     <Oshimark icon={oshi.icon} symbol={oshi.symbol} size={16} /> Oshi {oshi.display_name}
+                  </Link>
+                ) : null}
+                {standing ? (
+                  <Link href={`/leaderboard?tab=talent&coin=${enc(standing.symbol)}`} className={styles.board} title={standingLabel(standing)}>
+                    #{standing.rank.toLocaleString("en-US")} on oshiboard
                   </Link>
                 ) : null}
                 <span>Joined {tf.format(profile.created_at, { month: "short", year: "numeric" }, { was: "local" })}</span>

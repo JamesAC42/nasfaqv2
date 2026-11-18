@@ -335,6 +335,9 @@ async function applySchema(pool) {
       CONSTRAINT user_trade_streaks_longest_nonnegative_check CHECK (longest_streak_days >= 0)
     )
   `);
+  // 'new_york' once a row counts New York days (achievements/streaks.js); NULL rows were counted in
+  // UTC days and are rebuilt when next read.
+  await pool.query(`ALTER TABLE market.user_trade_streaks ADD COLUMN IF NOT EXISTS day_basis TEXT NULL`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS market.achievement_evaluation_runs (
       id BIGSERIAL PRIMARY KEY,
@@ -2230,6 +2233,34 @@ async function applySchema(pool) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+
+  // The market package (services/marketPackage.js, behind the market-package flag). Growth: one row
+  // per market date its regular settlement recorded, log_growth being the growth so far that fair
+  // values carry on that date (services/fairValueGrowth.js). Empty until the package first goes on.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.fair_value_growth (
+      market_date DATE PRIMARY KEY,
+      log_growth DOUBLE PRECISION NOT NULL,
+      per_day DOUBLE PRECISION NOT NULL DEFAULT 0,
+      recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  // Each spread change the settlement made at an Open (marketPackage.syncSpreads): the price chart
+  // works a fill's mid out from the spread in force when it landed (marketDb.getAssetCandles).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.asset_spread_changes (
+      id BIGSERIAL PRIMARY KEY,
+      asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+      old_spread_bps INTEGER NOT NULL,
+      new_spread_bps INTEGER NOT NULL,
+      changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_asset_spread_changes_asset_idx ON market.asset_spread_changes (asset_id, changed_at)`);
+  // The holder dividend each review paid (on top of the ranked dividend or fee, already in amount and
+  // in the payout's total): per share for the stock, and what one holder got.
+  await pool.query(`ALTER TABLE market.weekly_asset_evaluations ADD COLUMN IF NOT EXISTS holder_per_share NUMERIC NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE market.dividend_payouts ADD COLUMN IF NOT EXISTS holder_amount NUMERIC NOT NULL DEFAULT 0`);
 }
 
 module.exports = { applySchema };

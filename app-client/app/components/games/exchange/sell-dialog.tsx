@@ -85,7 +85,7 @@ export function SellDialog({
           {item ? <ItemArt item={item} width={170} /> : card ? <TalentCard card={card} width={170} /> : null}
           <small className={styles.note}>
             {item
-              ? "It comes off your profile while it's listed (unequipped if you're wearing it) and comes back if it doesn't sell."
+              ? "This is your only one: repeat pulls became shards, so it leaves your locker while it's listed (unequipped if you're wearing it) and comes back if it doesn't sell."
               : `${tradeable} tradeable cop${tradeable === 1 ? "y" : "ies"}. Selling one drops a star while you hold fewer than five.`}
           </small>
         </div>

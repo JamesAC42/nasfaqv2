@@ -14,6 +14,8 @@ const weekly = require("../src/services/weeklyEvaluation");
 const economy = require("../src/services/economy");
 const marketSim = require("../src/services/marketSim");
 const adminRoutes = require("../src/routes/admin");
+// These tests check rules the market package changes (services/marketPackage.js), so they run with it off; market-package.test.js covers it on.
+require("../src/features").override({ "market-package": "off" });
 
 const t = trading._test;
 const close = (actual, expected, message, tolerance = 1e-12) =>

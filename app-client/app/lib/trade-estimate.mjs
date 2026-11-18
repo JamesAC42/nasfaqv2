@@ -36,13 +36,18 @@ export function fillPrice(side, quote, quantity, depth) {
 }
 
 /**
- * What an order comes to at `price` a share. The fee comes out of Credit first: a buy's `total` is the
- * Cash it takes (shares plus whatever fee Credit doesn't cover), a sale's what lands in Cash.
- * @param {{ side: "buy" | "sell"; price: number; quantity: number; credit?: number | null; sellCreditRate?: number | null }} input
+ * What an order comes to at `price` a share. The fee is `feeRate` on `feeShares` of the order's shares
+ * (all of them unless said otherwise; 0 for a buy with no fee). It comes out of Credit first: a buy's
+ * `total` is the Cash it takes (shares plus whatever fee Credit doesn't cover), a sale's what lands in Cash.
+ * @param {{ side: "buy" | "sell"; price: number; quantity: number; credit?: number | null; sellCreditRate?: number | null; feeRate?: number | null; feeShares?: number | null }} input
  */
-export function orderTotals({ side, price, quantity, credit = 0, sellCreditRate = 0 }) {
-  const gross = Math.max(price || 0, 0) * Math.max(quantity || 0, 0);
-  const fee = gross * FEE_RATE;
+export function orderTotals({ side, price, quantity, credit = 0, sellCreditRate = 0, feeRate = FEE_RATE, feeShares = null }) {
+  const unit = Math.max(price || 0, 0);
+  const shares = Math.max(quantity || 0, 0);
+  const gross = unit * shares;
+  const rate = Math.max(feeRate ?? FEE_RATE, 0);
+  // As the API's marketPackage.fillFee: a fee on every share is worked out on the whole value.
+  const fee = feeShares === null || feeShares === undefined || feeShares >= shares ? gross * rate : unit * Math.max(feeShares, 0) * rate;
   const feeFromCredit = Math.min(Math.max(credit || 0, 0), fee);
   const total = side === "buy" ? gross + fee - feeFromCredit : gross - (fee - feeFromCredit);
   const creditEarned = side === "sell" ? gross * (sellCreditRate || 0) : 0;
@@ -52,16 +57,17 @@ export function orderTotals({ side, price, quantity, credit = 0, sellCreditRate 
 /**
  * The most whole shares a buy can ask for: no more than the share allowance left this tick, the
  * shares for sale, or what Cash covers at the ask with slippage and the fee (Credit paying the fee
- * first). A bigger order slips more, so this searches rather than divides.
- * @param {{ ask: number | null | undefined; depth?: number | null; cash: number | null | undefined; credit?: number | null; room?: number | null; forSale?: number | null }} input
+ * first; `feeRate` is what a buy pays, 0 when buys pay none). A bigger order slips more, so this
+ * searches rather than divides.
+ * @param {{ ask: number | null | undefined; depth?: number | null; cash: number | null | undefined; credit?: number | null; room?: number | null; forSale?: number | null; feeRate?: number | null }} input
  */
-export function maxBuyShares({ ask, depth = null, cash, credit = 0, room = null, forSale = null }) {
+export function maxBuyShares({ ask, depth = null, cash, credit = 0, room = null, forSale = null, feeRate = FEE_RATE }) {
   if (!(ask && ask > 0) || !(cash && cash > 0)) return 0;
   const caps = [MAX_INPUT_SHARES, room, forSale].filter((value) => value !== null && value !== undefined && Number.isFinite(value));
   let hi = Math.max(0, Math.floor(Math.min(...caps)));
   // A hair under the balance, so rounding here never asks for a cent more than the API sees.
   const budget = cash * (1 - 1e-9);
-  const fits = (/** @type {number} */ quantity) => orderTotals({ side: "buy", price: fillPrice("buy", ask, quantity, depth), quantity, credit }).total <= budget;
+  const fits = (/** @type {number} */ quantity) => orderTotals({ side: "buy", price: fillPrice("buy", ask, quantity, depth), quantity, credit, feeRate }).total <= budget;
   if (fits(hi)) return hi;
   let lo = 0;
   while (hi - lo > 1) {
@@ -82,6 +88,17 @@ export function maxSellShares({ held, queued = 0, room = null }) {
   const capped = room !== null && room !== undefined && Number.isFinite(room) ? Math.min(free, room) : free;
   const shares = Math.max(0, Math.floor(capped));
   return { shares, all: shares > 0 && shares >= Math.floor(held || 0) };
+}
+
+/**
+ * While the fee is only on quick sells: how many of a sale's shares pay it. `recent` is the holding's
+ * shares from buys in the last day (the API's fee_shares). A sale takes the newest shares first, and
+ * sells already queued on the stock fill first, so they use up the recent shares before this one.
+ * @param {{ quantity: number | null | undefined; recent: number | null | undefined; queued?: number | null }} input
+ */
+export function saleFeeShares({ quantity, recent, queued = 0 }) {
+  const left = Math.max(0, (recent || 0) - Math.max(queued || 0, 0));
+  return Math.min(Math.max(quantity || 0, 0), left);
 }
 
 /**

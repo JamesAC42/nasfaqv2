@@ -598,7 +598,7 @@ async function getProfileBundle(pool, {
       networth_history: networth,
       achievements: userAchievements,
       streaks: {
-        current_streak_days: Number(streaks.current_streak_days || 0),
+        current_streak_days: achievements.liveStreakDays(streaks),
         longest_streak_days: Number(streaks.longest_streak_days || 0),
         last_trade_day: streaks.last_trade_day || null,
         streak_started_day: streaks.streak_started_day || null,

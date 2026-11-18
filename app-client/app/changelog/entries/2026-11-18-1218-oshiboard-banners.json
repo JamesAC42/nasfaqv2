@@ -1,0 +1,8 @@
+{
+  "title": "Fly your oshi's colors",
+  "changes": [
+    { "kind": "new", "text": "On your oshi's oshiboard? A banner in your color with their mark now hangs on your profile. The higher you rank, the bigger it is. The top three fly gold, silver and bronze, and first place glows." },
+    { "kind": "new", "text": "Your profile shows your place on the board next to your oshi, linked to the board itself." },
+    { "kind": "new", "text": "A small banner beside a name on the leaderboard means that player is on their oshi's oshiboard." }
+  ]
+}

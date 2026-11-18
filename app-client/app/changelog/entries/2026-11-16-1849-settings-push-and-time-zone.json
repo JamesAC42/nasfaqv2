@@ -1,0 +1,13 @@
+{
+  "title": "Settings: push notifications and your time zone",
+  "changes": [
+    {
+      "kind": "new",
+      "text": "A Settings page, in the account menu at the top. Under Notifications, turn on push notifications for this device: a daily check-in reminder at 6 PM ET (only if you haven’t checked in yet), plus dividends, buybacks, bet results, replies, friend requests and exchange trades, with a switch for each group. On iPhone and iPad, add NASFAQ to your Home Screen first."
+    },
+    {
+      "kind": "new",
+      "text": "Under Display, show times in New York market time or your own time zone. Every clock time on the site follows and names its zone. Ticks, the check-in reset and Saturday’s review still run on New York time."
+    }
+  ]
+}
