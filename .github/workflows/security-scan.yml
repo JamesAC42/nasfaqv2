@@ -26,9 +26,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "20"
-      # Production dependencies only (the image's), high or critical only. Reads the lockfile, so
-      # there's nothing to install.
-      - run: npm audit --omit=dev --audit-level=high
+      # `npm audit --omit=dev --audit-level=high` (production dependencies, high or critical), minus
+      # the advisories in .github/npm-audit-exceptions.json; an exception fails again once its
+      # package has a fixed release. Reads the lockfile, so there's nothing to install.
+      - run: node ../.github/scripts/npm-audit.mjs ${{ matrix.app }}
         working-directory: ${{ matrix.app }}
 
   govulncheck:

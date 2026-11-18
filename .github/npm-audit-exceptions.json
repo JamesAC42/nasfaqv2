@@ -1,0 +1,10 @@
+[
+  {
+    "app": "app-client",
+    "advisory": "GHSA-fc5q-39xc-vjpf",
+    "package": "picomatch",
+    "lastVulnerable": "4.0.7",
+    "added": "2026-11-18",
+    "why": "ReDoS from attacker-supplied glob patterns. picomatch reaches the app only through @parcel/watcher, sass's optional file watcher for `sass --watch`; neither the build nor the running app watches files, and no glob comes from users. No fixed picomatch exists yet (4.0.7 is the latest)."
+  }
+]
