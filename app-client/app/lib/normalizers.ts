@@ -38,6 +38,7 @@ import {
   type LeaderboardEntry,
   type LeaderboardMe,
   type LeaderboardNeighbor,
+  type OshiboardStanding,
   type LeaderboardResponse,
   type LeaderboardStats,
   type LivestreamItem,
@@ -1752,6 +1753,21 @@ export function normalizeV1Account(value: unknown): V1Account | null {
   };
 }
 
+function normalizeOshiboardStanding(value: unknown): OshiboardStanding | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const rank = Number(row.rank || 0);
+  if (!rank || !row.symbol) return null;
+  return {
+    symbol: String(row.symbol),
+    display_name: String(row.display_name || row.symbol),
+    icon: row.icon ? String(row.icon) : null,
+    color: row.color ? String(row.color) : null,
+    rank,
+    member_count: Number(row.member_count || 0),
+  };
+}
+
 export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): LeaderboardEntry[] {
   return rows.map((row, index) => ({
     user_id: Number(row.user_id || row.id || 0),
@@ -1759,6 +1775,7 @@ export function normalizeLeaderboard(rows: Array<Record<string, unknown>>): Lead
     username: String(row.username || row.label || "user"),
     profile_picture_url: row.profile_picture_url ? String(row.profile_picture_url) : null,
     profile_color: row.profile_color ? String(row.profile_color) : null,
+    oshiboard_standing: normalizeOshiboardStanding(row.oshiboard_standing),
     equipped: normalizeEquipped(row.equipped),
     equipped_hat:
       row.equipped_hat && typeof row.equipped_hat === "object"
@@ -1818,6 +1835,7 @@ function normalizeLeaderboardNeighbor(value: Record<string, unknown>): Leaderboa
     gap_abs: toNumber(value.gap_abs),
     profile_picture_url: value.profile_picture_url ? String(value.profile_picture_url) : null,
     profile_color: value.profile_color ? String(value.profile_color) : null,
+    oshiboard_standing: normalizeOshiboardStanding(value.oshiboard_standing),
     equipped_hat:
       value.equipped_hat && typeof value.equipped_hat === "object"
         ? {

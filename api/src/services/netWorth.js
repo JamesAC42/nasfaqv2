@@ -177,6 +177,8 @@ function mapLeaderboardEntry(row, {
     achievements: decoration?.achievements || [],
     equipped_hat: decoration?.equipped_hat || null,
     equipped: decoration?.equipped || {},
+    // Only when asked for (withOshiboard); the oshiboard-standing flag lists it, so forAudience drops it.
+    ...(decoration && "oshiboard_standing" in decoration ? { oshiboard_standing: decoration.oshiboard_standing } : {}),
     streaks: decoration?.streaks || {
       current_streak_days: 0,
       longest_streak_days: 0,
@@ -222,7 +224,7 @@ async function loadLeaderboardHoldingQuantities(pool, rows) {
   return quantityByKey;
 }
 
-async function loadLeaderboardDecorations(pool, userIds) {
+async function loadLeaderboardDecorations(pool, userIds, { withOshiboard = false } = {}) {
   const safeUserIds = Array.isArray(userIds)
     ? Array.from(new Set(userIds.map((value) => toInt(value, 0)).filter((value) => value > 0)))
     : [];
@@ -289,6 +291,7 @@ async function loadLeaderboardDecorations(pool, userIds) {
         longest_streak_days: 0,
         last_trade_day: null,
       },
+      ...(withOshiboard ? { oshiboard_standing: null } : {}),
     });
   }
 
@@ -331,9 +334,15 @@ async function loadLeaderboardDecorations(pool, userIds) {
   }
 
   // Everything equipped (frame, badge, flair, item as well as the hat), for avatars and badges.
-  const equipped = await loadEquipped(pool, safeUserIds);
+  const [equipped, standings] = await Promise.all([
+    loadEquipped(pool, safeUserIds),
+    withOshiboard ? loadOshiboardStandings(pool, safeUserIds) : new Map(),
+  ]);
   for (const [userId, slots] of equipped) {
     if (decorationByUserId.has(userId)) decorationByUserId.get(userId).equipped = slots;
+  }
+  for (const [userId, standing] of standings) {
+    if (decorationByUserId.has(userId)) decorationByUserId.get(userId).oshiboard_standing = standing;
   }
 
   return decorationByUserId;
@@ -903,7 +912,7 @@ async function listRelationshipIds(pool, viewerUserId, scope) {
   };
 }
 
-async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "global", window = "1d", page = 1, limit = 25 } = {}) {
+async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "global", window = "1d", page = 1, limit = 25, withOshiboard = false } = {}) {
   await ensureCurrentLeaderboardReady(pool);
 
   const safeWindow = normalizeWindow(window);
@@ -998,7 +1007,8 @@ async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "globa
       ...entriesResult.rows.map((row) => toInt(row.user_id, 0)),
       ...neighborsResult.rows.map((row) => toInt(row.user_id, 0)),
       meRow ? toInt(meRow.user_id, 0) : 0,
-    ]
+    ],
+    { withOshiboard }
   );
   const holdingQuantityByKey = await loadLeaderboardHoldingQuantities(pool, [
     ...entriesResult.rows,
@@ -1052,6 +1062,7 @@ async function listLeaderboardBundle(pool, { viewerUserId = null, scope = "globa
         profile_color: entry.profile_color,
         equipped_hat: entry.equipped_hat,
         equipped: entry.equipped,
+        ...("oshiboard_standing" in entry ? { oshiboard_standing: entry.oshiboard_standing } : {}),
       };
     });
 
@@ -1251,17 +1262,15 @@ async function getAssetOshiboard(pool, symbol, { limit = 50 } = {}) {
   };
 }
 
-async function listUserOshiboardMemberships(pool, userId) {
-  await ensureCurrentOshiboardsReady(pool);
-  const safeUserId = toInt(userId, 0);
-  if (!safeUserId) return [];
-
+// Each player's place on the boards they're on, ranked over the whole board (the same order and the
+// same players as getAssetOshiboard), so a profile, a leaderboard row and the board itself agree.
+async function queryOshiboardMemberships(pool, userIds) {
   const { rows } = await pool.query(
     `
     WITH user_boards AS (
       SELECT DISTINCT asset_id
       FROM market.user_oshiboard_current
-      WHERE user_id = $1
+      WHERE user_id = ANY($1::bigint[])
     ),
     ranked AS (
       SELECT
@@ -1269,13 +1278,16 @@ async function listUserOshiboardMemberships(pool, userId) {
         ROW_NUMBER() OVER (
           PARTITION BY o.asset_id
           ORDER BY o.coin_quantity DESC, o.username_snapshot ASC, o.user_id ASC
-        )::INTEGER AS rank
+        )::INTEGER AS rank,
+        COUNT(*) OVER (PARTITION BY o.asset_id)::INTEGER AS member_count,
+        SUM(o.coin_quantity) OVER (PARTITION BY o.asset_id) AS total_shares
       FROM market.user_oshiboard_current o
       JOIN user_boards ub
         ON ub.asset_id = o.asset_id
       WHERE ${leaderboardPlayerSql("o.user_id")}
     )
     SELECT
+      r.user_id,
       a.id AS asset_id,
       a.symbol,
       a.display_name,
@@ -1286,27 +1298,26 @@ async function listUserOshiboardMemberships(pool, userId) {
       r.coin_market_value,
       r.total_equity,
       r.updated_at,
-      board_stats.member_count,
-      board_stats.total_shares
+      r.member_count,
+      r.total_shares
     FROM ranked r
     JOIN market.market_assets a
       ON a.id = r.asset_id
     LEFT JOIN yt.youtube_channels yc
       ON yc.youtube_channel_id = a.youtube_channel_id
-    JOIN LATERAL (
-      SELECT
-        COUNT(*)::INTEGER AS member_count,
-        COALESCE(SUM(coin_quantity), 0) AS total_shares
-      FROM market.user_oshiboard_current o
-      WHERE o.asset_id = r.asset_id
-        AND ${leaderboardPlayerSql("o.user_id")}
-    ) board_stats ON true
-    WHERE r.user_id = $1
+    WHERE r.user_id = ANY($1::bigint[])
     ORDER BY r.rank ASC, a.symbol ASC
   `,
-    [safeUserId]
+    [userIds]
   );
+  return rows;
+}
 
+async function listUserOshiboardMemberships(pool, userId) {
+  await ensureCurrentOshiboardsReady(pool);
+  const safeUserId = toInt(userId, 0);
+  if (!safeUserId) return [];
+  const rows = await queryOshiboardMemberships(pool, [safeUserId]);
   return rows.map((row) => ({
     asset: {
       id: toInt(row.asset_id, 0),
@@ -1323,6 +1334,27 @@ async function listUserOshiboardMemberships(pool, userId) {
     total_shares: toNumber(row.total_shares, 0),
     updated_at: row.updated_at ? new Date(row.updated_at).toISOString() : null,
   }));
+}
+
+// For leaderboard rows: each player's place on their oshi's oshiboard, or nothing. A player is only
+// ever on one board (their oshi's, while it's also their largest bag).
+async function loadOshiboardStandings(pool, userIds) {
+  const standingByUserId = new Map();
+  if (!userIds.length) return standingByUserId;
+  await ensureCurrentOshiboardsReady(pool);
+  for (const row of await queryOshiboardMemberships(pool, userIds)) {
+    const userId = toInt(row.user_id, 0);
+    if (standingByUserId.has(userId)) continue;
+    standingByUserId.set(userId, {
+      symbol: String(row.symbol || ""),
+      display_name: String(row.display_name || row.symbol || ""),
+      icon: row.icon ? String(row.icon) : null,
+      color: row.color ? String(row.color) : null,
+      rank: toInt(row.rank, 0),
+      member_count: toInt(row.member_count, 0),
+    });
+  }
+  return standingByUserId;
 }
 
 async function listOshiboardAssetStats(pool) {

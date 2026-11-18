@@ -1478,12 +1478,24 @@ export type ChannelLivestreamBundle = {
   upcoming: LivestreamItem[];
 };
 
+/** A player's place on their oshi's oshiboard (leaderboard rows, behind the oshiboard-standing flag). */
+export type OshiboardStanding = {
+  symbol: string;
+  display_name: string;
+  icon: string | null;
+  color: string | null;
+  rank: number;
+  member_count: number;
+};
+
 export type LeaderboardEntry = {
   user_id: number;
   id: string;
   username: string;
   profile_picture_url: string | null;
   profile_color: string | null;
+  /** Null when they're on no board; missing for viewers without the flag. */
+  oshiboard_standing?: OshiboardStanding | null;
   equipped?: Equipped;
   equipped_hat: {
     cosmetic_key: string;
@@ -1544,6 +1556,7 @@ export type LeaderboardNeighbor = {
   gap_abs: number | null;
   profile_picture_url: string | null;
   profile_color: string | null;
+  oshiboard_standing?: OshiboardStanding | null;
   equipped_hat: LeaderboardEntry["equipped_hat"];
 };
 
