@@ -47,6 +47,19 @@ that only exists in a new major still opens a pull request.
   advisories and `brokerbot/app/` 5. Dismiss them as "Vulnerable code is not actually used", close
   their pull requests, or delete the directories.
 
+## npm audit exceptions
+
+When an advisory has no fixed version yet and we can't reach the vulnerable code, the npm audit check
+can skip it: add an entry to `.github/npm-audit-exceptions.json` with the app, the advisory's GHSA id,
+the package, the last vulnerable version and why it's safe. The check
+(`.github/scripts/npm-audit.mjs`) still fails on every other high or critical advisory, and it fails
+on the excepted one too as soon as the registry has a release newer than `lastVulnerable`. Then
+update the lockfile to the fix and delete the entry in the same pull request.
+
+| Added | App | Advisory | Why it's safe |
+| --- | --- | --- | --- |
+| 2026-11-18 | app-client | picomatch ReDoS ([GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf)), every version through 4.0.7 | Only reached through `@parcel/watcher`, sass's optional watcher for `sass --watch`. The build and the running app never watch files, and no glob comes from users. |
+
 ## Getting notified
 
 1. <https://github.com/settings/notifications>, under **Dependabot alerts: New vulnerabilities**: tick
