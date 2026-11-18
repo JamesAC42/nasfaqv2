@@ -609,8 +609,11 @@ export type LobbyEntry = {
   chips?: boolean;
 };
 
-/** What `lobby:mahjong` pushes. */
-export type LobbyPush = { type: "lobby"; game: "mahjong"; tables: LobbyEntry[]; server_time: number };
+/** Totals over every listed table: the lobby's list stops at the newest few dozen. */
+export type LobbyCounts = { tables: number; playing: number; waiting_quick: number; watching: number };
+
+/** What `lobby:mahjong` pushes. `counts` is missing from an older API. */
+export type LobbyPush = { type: "lobby"; game: "mahjong"; tables: LobbyEntry[]; counts?: LobbyCounts; server_time: number };
 
 export type StakeTier = {
   fee: number;
@@ -647,6 +650,7 @@ export type LobbyResponse = {
   type: "lobby";
   game: "mahjong";
   tables: LobbyEntry[];
+  counts?: LobbyCounts;
   server_time: number;
   rules: MahjongRules;
   /** "2026-11". */

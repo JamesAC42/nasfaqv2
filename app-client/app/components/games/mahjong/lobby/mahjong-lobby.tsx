@@ -83,10 +83,11 @@ export function MahjongLobby() {
     };
   }, [signedIn, user?.id]);
 
-  const seedPush: LobbyPush | null = seed ? { type: "lobby", game: "mahjong", tables: seed.tables, server_time: seed.server_time } : null;
+  const seedPush: LobbyPush | null = seed ? { type: "lobby", game: "mahjong", tables: seed.tables, counts: seed.counts, server_time: seed.server_time } : null;
   useSeedChannel(mahjongChannels.lobby, seedPush);
   const live = useGamesChannel<LobbyPush>(mahjongChannels.lobby);
   const tables = live?.tables ?? seed?.tables ?? null;
+  const counts = (live ? live.counts : seed?.counts) ?? null;
   const rules = seed?.rules ?? null;
   const myTable = seed?.my_table ?? null;
 
@@ -179,16 +180,18 @@ export function MahjongLobby() {
   const stakes = (tier: number) => run(`stakes-${tier}`, () => createMahjongTable({ kind: "stakes", tier, length: stakesLength }));
   const sit = (id: number) => run(`sit-${id}`, () => sitMahjongTable(id));
 
-  const playing = tables?.filter((table) => table.status === "playing").length ?? 0;
-  const watching = tables?.reduce((sum, table) => sum + table.spectators, 0) ?? 0;
+  // The list stops at the newest few dozen tables; the totals cover them all.
+  const playing = counts?.playing ?? tables?.filter((table) => table.status === "playing").length ?? 0;
+  const watching = counts?.watching ?? tables?.reduce((sum, table) => sum + table.spectators, 0) ?? 0;
   const lobbyTables = tables ?? [];
+  const listedTotal = counts?.tables ?? lobbyTables.length;
   const trial = rules?.trial === true;
   // A newcomer has no badges and no games. Signed in, that is known only once /me says so (an older API sends no badges: then nobody is a newcomer).
   const newcomer = trial && (signedIn ? Array.isArray(me?.badges) && me.badges.length === 0 && (me.rating?.games ?? 0) === 0 : initialized && !playedHere);
   const chips = me?.chips ?? null;
   const openTournaments = (tournaments ?? []).filter((entry) => entry.status === "signup" || entry.status === "running");
   const botFill = rules?.bot_fill_seconds ?? 45;
-  const waitingQuick = lobbyTables.filter((table) => table.kind === "ranked" && table.status === "waiting").length;
+  const waitingQuick = counts?.waiting_quick ?? lobbyTables.filter((table) => table.kind === "ranked" && table.status === "waiting").length;
 
   return (
     <GamesFrame
@@ -543,14 +546,17 @@ export function MahjongLobby() {
 
         <section className={styles.section} aria-labelledby="mj-live">
           <h2 id="mj-live" className={styles.head}>
-            Live tables <small>{lobbyTables.length}</small>
+            Live tables <small>{fmtInteger(listedTotal)}</small>
           </h2>
           {tables === null ? null : lobbyTables.length ? (
-            <ul className={styles.liveList}>
-              {lobbyTables.map((table) => (
-                <LiveTableRow key={table.id} table={table} now={now} canSit={signedIn && verified && !myTable} busy={busy === `sit-${table.id}`} onSit={sit} />
-              ))}
-            </ul>
+            <>
+              <ul className={styles.liveList}>
+                {lobbyTables.map((table) => (
+                  <LiveTableRow key={table.id} table={table} now={now} canSit={signedIn && verified && !myTable} busy={busy === `sit-${table.id}`} onSit={sit} />
+                ))}
+              </ul>
+              {listedTotal > lobbyTables.length ? <p className={styles.empty}>Showing the newest {fmtInteger(lobbyTables.length)}.</p> : null}
+            </>
           ) : (
             <p className={styles.empty}>No one at the tables right now. Open a quick match and the seats start filling.</p>
           )}

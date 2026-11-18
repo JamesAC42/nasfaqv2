@@ -523,6 +523,7 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
     assert.match(room.table.room_code, /^[a-z0-9]{6}$/);
     assert.equal(tables.roomByCode(room.table.room_code.toUpperCase()), room.table.id);
     assert.equal(tables.lobby().tables.some((entry) => entry.id === room.table.id), false, "friend rooms aren't listed");
+    assert.equal(tables.lobby().counts.tables, tables.lobby().tables.length, "the totals count the listed tables, not friend rooms");
     await tables.joinTable({ userId: guest, tableId: room.table.id });
     await assert.rejects(tables.startTable({ userId: guest, tableId: room.table.id }), { code: "forbidden" });
     await tables.startTable({ userId: host, tableId: room.table.id });

@@ -50,6 +50,8 @@ const KINDS = new Set(["tutorial", "practice", "friend", "ranked", "stakes", "to
 const RECORDED = new Set(["friend", "ranked", "stakes", "tournament"]);
 const RATED = new Set(["ranked", "stakes", "tournament"]);
 const LISTED = new Set(["ranked", "stakes", "tournament"]);
+/** The most tables the lobby lists (all the waiting ones come first). */
+const LOBBY_LIST_MAX = 20;
 const BOT_NAMES = ["Paper Hands", "Diamond Hands", "Limit Order", "Stop Loss", "Dip Buyer", "Bag Check", "Dead Cat", "Short Squeeze", "Margin Call", "Late Bell"];
 const AWAY_AFTER_TIMEOUTS = 2;
 // How long the table shows a finished hand before dealing the next.
@@ -341,15 +343,37 @@ function lobbyEntry(table) {
   };
 }
 
+/**
+ * The lobby's list: the tables waiting for players first, then the newest games under way, at most
+ * LOBBY_LIST_MAX (every lobby viewer gets the whole list each time, so it can't grow with the number of
+ * tables), with the totals over all of them.
+ */
 function lobbySnapshot() {
-  const list = [...tables.values()]
-    .filter((table) => LISTED.has(table.kind) && (table.status === "waiting" || table.status === "playing"))
+  const open = [...tables.values()].filter((table) => LISTED.has(table.kind) && (table.status === "waiting" || table.status === "playing"));
+  const waiting = open.filter((table) => table.status === "waiting");
+  const playing = open.filter((table) => table.status === "playing").sort((a, b) => b.createdAt - a.createdAt);
+  const list = [...waiting.sort((a, b) => a.createdAt - b.createdAt), ...playing]
+    .slice(0, LOBBY_LIST_MAX)
     .sort((a, b) => (a.status === b.status ? b.createdAt - a.createdAt : a.status === "playing" ? -1 : 1))
     .map(lobbyEntry);
-  return { type: "lobby", game: "mahjong", tables: list, server_time: Date.now() };
+  const counts = {
+    tables: open.length,
+    playing: playing.length,
+    waiting_quick: waiting.filter((table) => table.kind === "ranked").length,
+    watching: open.reduce((sum, table) => sum + hub.count(`mahjong:${table.id}`), 0),
+  };
+  return { type: "lobby", game: "mahjong", tables: list, counts, server_time: Date.now() };
 }
 
-const lobbyPush = socketLimits.coalesce(() => hub.publish("lobby:mahjong", lobbySnapshot()), 1000);
+// Asked for on every move at a listed table; sent at most once a second, and only when the list changed.
+let lastLobby = null;
+const lobbyPush = socketLimits.coalesce(() => {
+  const snapshot = lobbySnapshot();
+  const key = JSON.stringify([snapshot.tables, snapshot.counts]);
+  if (key === lastLobby) return;
+  lastLobby = key;
+  hub.publish("lobby:mahjong", snapshot);
+}, 1000);
 
 function publish(table) {
   hub.publish(`mahjong:${table.id}`, { type: "mahjong", table: publicTable(table) });
@@ -1497,6 +1521,7 @@ function reset() {
   cursorStreams.clear();
   recentTalents.length = 0;
   lobbyPush.stop();
+  lastLobby = null;
   tables.clear();
   roomCodes.clear();
   seatTokens.clear();
