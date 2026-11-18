@@ -396,6 +396,7 @@ const RESET_TABLES = [
   "market.daily_market_reports",
   "market.market_settlement_runs",
   "market.fair_value_growth",
+  "market.asset_spread_changes",
   "market.fundamental_calculation_runs",
   "market.adjustment_sessions",
   "market.asset_adjustment_intervals",

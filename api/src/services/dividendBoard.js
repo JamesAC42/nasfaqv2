@@ -67,8 +67,10 @@ async function loadRanking(pool, { window, withOshi }) {
       WITH totals AS (
         SELECT p.user_id,
                SUM(p.amount) AS net,
-               COALESCE(SUM(p.amount) FILTER (WHERE p.amount > 0), 0) AS dividends,
-               COALESCE(SUM(p.amount) FILTER (WHERE p.amount < 0), 0) AS fees,
+               -- The market package's holder dividend (holder_amount, inside amount) counts as a
+               -- dividend even on a stock whose ranked part was a fee.
+               COALESCE(SUM(GREATEST(p.amount - p.holder_amount, 0) + p.holder_amount), 0) AS dividends,
+               COALESCE(SUM(LEAST(p.amount - p.holder_amount, 0)), 0) AS fees,
                SUM(p.waived) AS waived,
                COUNT(DISTINCT p.asset_id)::int AS stocks
         FROM market.dividend_payouts p
@@ -193,8 +195,8 @@ async function playerBreakdown(pool, userId, { window, withOshi }) {
       `
       SELECT a.symbol, a.display_name,
              SUM(p.amount) AS net,
-             COALESCE(SUM(p.amount) FILTER (WHERE p.amount > 0), 0) AS dividends,
-             COALESCE(SUM(p.amount) FILTER (WHERE p.amount < 0), 0) AS fees,
+             COALESCE(SUM(GREATEST(p.amount - p.holder_amount, 0) + p.holder_amount), 0) AS dividends,
+             COALESCE(SUM(LEAST(p.amount - p.holder_amount, 0)), 0) AS fees,
              SUM(p.waived) AS waived,
              SUM(p.protected_quantity) AS protected_quantity,
              COUNT(*)::int AS weeks

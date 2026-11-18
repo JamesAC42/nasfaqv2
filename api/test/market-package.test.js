@@ -390,6 +390,24 @@ test("trades: the fee only on recent shares, the same through the instant path a
   } finally {
     restore();
   }
+
+  // The price chart works a fill's mid out from the spread in force when it landed: one from before
+  // a change at an Open uses the old spread.
+  const marketDb = require("../src/marketDb");
+  const erin = await player("pkg_erin");
+  await trading.executeOrder(pool, { userId: erin, symbol: "PKG", side: "buy", quantity: 10, refreshDerivedState: false });
+  const { rows: erinFill } = await pool.query(`UPDATE market.trade_fills SET ts = now() - interval '3 hours' WHERE user_id = $1 RETURNING date_trunc('minute', ts) AS minute`, [erin]);
+  const pointOf = async () => {
+    const candles = await marketDb.getAssetCandles(pool, "PKG", { interval: "1m", range: "24h" });
+    return Number(candles.find((row) => new Date(row.bucket).getTime() === new Date(erinFill[0].minute).getTime()).open);
+  };
+  const atToday = await pointOf();
+  await pool.query(`INSERT INTO market.asset_spread_changes (asset_id, old_spread_bps, new_spread_bps, changed_at) VALUES ($1, 400, 150, now() - interval '1 hour')`, [assetId]);
+  const atTheTime = await pointOf();
+  close(atTheTime / atToday, (1 + 0.0075) / (1 + 0.02), "a fill before the change is priced at the old 4% spread", 1e-9);
+  // A change before the fill doesn't touch it.
+  await pool.query(`UPDATE market.asset_spread_changes SET changed_at = now() - interval '5 hours'`);
+  close(await pointOf(), atToday, "a fill after the change is priced at today's spread", 1e-12);
 });
 
 test("settlement: the spread moves at the Open, growth compounds per day, replays and the refresh reproduce it", { skip: !databaseUrl, timeout: 300_000 }, async (t) => {
@@ -454,6 +472,8 @@ test("settlement: the spread moves at the Open, growth compounds per day, replay
     const opened = await spreads();
     assert.deepEqual(opened.map((row) => row.spread_bps), [150, 600], "the old spread moves to 1.5%; a stock's own spread stays");
     ratio(opened[0].ask - opened[0].bid, opened[0].mid, 0.015, "PGA's quotes are 1.5% apart");
+    const changes = (await pool.query(`SELECT old_spread_bps, new_spread_bps FROM market.asset_spread_changes`)).rows;
+    assert.deepEqual(changes, [{ old_spread_bps: 400, new_spread_bps: 150 }], "the change is logged for the chart");
     await silenced(() => settlement.settleMarketDay(pool, { marketDate: day(17) }));
     assert.deepEqual((await growthRows()).map((row) => [row.d, row.log_growth]), [[day(16), 0.0005], [day(17), 0.001]]);
     const values = await fairValues();

@@ -14,7 +14,9 @@
 //      the last one before an on-demand run): what each holder added since then is written down as
 //      late shares (startedLateShares), which sell at the frozen price.
 //      The first evaluation never sets a max below what players already hold.
-//   Rookies (listed by an IPO in the last ROOKIE_DAYS, docs/market/ipo.md): no dividend or fee (their
+//   The market package's holder dividend (marketPackage.js, while it's on): every holding of every
+//   stock, rookies included, also gets holderRate × basis per share as Credit, apart from the ranking.
+//   Rookies (listed by an IPO in the last ROOKIE_DAYS, docs/market/ipo.md): no ranked dividend or fee (their
 //   week-over-week shift reads the launch, so they're left out of the ranking too), and their max
 //   shares never drop below what players hold.
 //   Oshi protection (services/oshi.js, the oshi-protection feature flag): a player's oshi charges no

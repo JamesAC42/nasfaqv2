@@ -137,10 +137,21 @@ async function loadRecentFills(db, pairs, now = new Date()) {
 /**
  * At a regular settlement, before the day's quotes are worked out: stocks on the old spread move to
  * the package's while it's on, and back while it's off. A stock on any other spread is left alone.
+ * Each change is logged (market.asset_spread_changes), so the chart prices older fills at the spread
+ * they traded at.
  */
 async function syncSpreads(client) {
   const [from, to] = isOn() ? [LEGACY_SPREAD_BPS, SPREAD_BPS] : [SPREAD_BPS, LEGACY_SPREAD_BPS];
-  const { rowCount } = await client.query(`UPDATE market.market_assets SET spread_bps = $2, updated_at = now() WHERE spread_bps = $1`, [from, to]);
+  const { rowCount } = await client.query(
+    `
+    WITH changed AS (
+      UPDATE market.market_assets SET spread_bps = $2, updated_at = now() WHERE spread_bps = $1 RETURNING id
+    )
+    INSERT INTO market.asset_spread_changes (asset_id, old_spread_bps, new_spread_bps)
+    SELECT id, $1, $2 FROM changed
+  `,
+    [from, to]
+  );
   return rowCount || 0;
 }
 

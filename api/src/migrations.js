@@ -2243,6 +2243,18 @@ async function applySchema(pool) {
       recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+  // Each spread change the settlement made at an Open (marketPackage.syncSpreads): the price chart
+  // works a fill's mid out from the spread in force when it landed (marketDb.getAssetCandles).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.asset_spread_changes (
+      id BIGSERIAL PRIMARY KEY,
+      asset_id BIGINT NOT NULL REFERENCES market.market_assets(id) ON DELETE CASCADE,
+      old_spread_bps INTEGER NOT NULL,
+      new_spread_bps INTEGER NOT NULL,
+      changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS market_asset_spread_changes_asset_idx ON market.asset_spread_changes (asset_id, changed_at)`);
   // The holder dividend each review paid (on top of the ranked dividend or fee, already in amount and
   // in the payout's total): per share for the stock, and what one holder got.
   await pool.query(`ALTER TABLE market.weekly_asset_evaluations ADD COLUMN IF NOT EXISTS holder_per_share NUMERIC NOT NULL DEFAULT 0`);
