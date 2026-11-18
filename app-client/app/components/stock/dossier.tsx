@@ -17,12 +17,13 @@ import { ChannelSection, StreamsSection, SuperchatSection } from "@/app/componen
 import { BoardSection, HoldersSection, NewsSection } from "@/app/components/stock/community-sections";
 import { fmtBig, yen, type Rank } from "@/app/components/stock/format";
 import { useChannelStreams, useSuperchats } from "@/app/components/stock/use-stock-data";
-import { FEE_RATE, n2, TradeTicket } from "@/app/components/trade/trade-ticket";
+import { feePct, feeSharesFor, n2, TradeTicket, useFeeRule } from "@/app/components/trade/trade-ticket";
+import { orderTotals } from "@/app/lib/trade-estimate.mjs";
 import { activeBuyback, useBuybackSpotlight } from "@/app/lib/buyback";
 import { closeSeries, unitLabel } from "@/app/lib/market-units";
 import { talentAccent } from "@/app/lib/talent-color";
 import { money, signedPct, toneOf } from "@/app/lib/time";
-import type { MarketAsset } from "@/app/lib/types";
+import type { MarketAsset, PortfolioHolding } from "@/app/lib/types";
 import { useAuth } from "@/app/providers/auth-provider";
 import { useTheme } from "@/app/providers/theme-provider";
 import { useChannelStore } from "@/app/stores/channel-store";
@@ -77,14 +78,23 @@ function useScrollSpy(ids: readonly string[]) {
 
 /**
  * What selling the whole position right now would bring: the bid (the broker's price in a buyback)
- * less the 1% fee, against what it cost. An estimate: the sell fills in the next batch, big ones slip.
+ * less the fee (on every share, or with the market package only on the shares bought in the last
+ * day), against what it cost. An estimate: the sell fills in the next batch, big ones slip.
  */
-function SellNow({ asset, quantity, avgCost }: { asset: MarketAsset; quantity: number; avgCost: number | null }) {
+function SellNow({ asset, holding }: { asset: MarketAsset; holding: PortfolioHolding }) {
+  const rule = useFeeRule();
+  const quantity = holding.quantity;
+  const avgCost = holding.avg_cost_basis;
   const price = asset.trading_state === "buyback" && asset.buyback ? asset.buyback.price : asset.current_bid_price ?? asset.current_mid_price;
   if (price === null || price === undefined || !Number.isFinite(price) || quantity <= 0) return null;
-  const gross = price * quantity;
-  const net = gross - gross * FEE_RATE;
+  const feeShares = feeSharesFor(rule, quantity, holding);
+  const { total: net, fee } = orderTotals({ side: "sell", price, quantity, feeRate: rule.rate, feeShares });
   const result = avgCost !== null && Number.isFinite(avgCost) ? net - avgCost * quantity : null;
+  const feeText = !rule.quickSellsOnly
+    ? "less the 1% fee"
+    : feeShares > 0
+      ? `less the ${feePct(rule.rate)} fee on the ${feeShares.toLocaleString("en-US")} share${feeShares === 1 ? "" : "s"} bought in the last ${rule.hours}h`
+      : `with no fee (nothing bought in the last ${rule.hours}h)`;
   return (
     <div className={styles.sellNow}>
       <dl className={styles.kv}>
@@ -92,7 +102,10 @@ function SellNow({ asset, quantity, avgCost }: { asset: MarketAsset; quantity: n
         <dd>{money(net)}</dd>
         {result !== null ? (
           <>
-            <dt>{result >= 0 ? "Profit" : "Loss"} after the fee</dt>
+            <dt>
+              {result >= 0 ? "Profit" : "Loss"}
+              {fee > 0 ? " after the fee" : ""}
+            </dt>
             <dd className={styles[toneOf(result)]}>
               {result >= 0 ? "+" : "−"}
               {money(Math.abs(result))}
@@ -101,7 +114,7 @@ function SellNow({ asset, quantity, avgCost }: { asset: MarketAsset; quantity: n
         ) : null}
       </dl>
       <p>
-        At {n2(price)} a share less the 1% fee. Sells fill in the next batch, and big ones slip a little. <Link href="/how-to-play#when-to-sell">When should I sell?</Link>
+        At {n2(price)} a share {feeText}. Sells fill in the next batch, and big ones slip a little. <Link href="/how-to-play#when-to-sell">When should I sell?</Link>
       </p>
     </div>
   );
@@ -384,7 +397,7 @@ function DossierBody({ asset }: { asset: MarketAsset }) {
                       <dt>Share of your book</dt>
                       <dd>{portfolio && portfolio.total_market_value > 0 ? `${((holding.market_value / portfolio.total_market_value) * 100).toFixed(1)}%` : "—"}</dd>
                     </dl>
-                    <SellNow asset={asset} quantity={holding.quantity} avgCost={holding.avg_cost_basis} />
+                    <SellNow asset={asset} holding={holding} />
                   </>
                 ) : (
                   <p className={styles.none}>You don&apos;t hold any {sym}.</p>

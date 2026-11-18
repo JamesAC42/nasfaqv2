@@ -40,6 +40,7 @@ const autoBailout = require("./autoBailout");
 const economy = require("./economy");
 const oshi = require("./oshi");
 const features = require("../features");
+const marketPackage = require("./marketPackage");
 const pgNumeric = require("./pgNumeric");
 const notifications = require("./notifications");
 const marketState = require("./marketState");
@@ -300,7 +301,7 @@ async function loadWallets(client, userIds, { lock }) {
  * first pick, which counts as held all week). Null: the flag is off.
  * bailoutPlayers: autoBailout.loadPlayers' set of who could be bailed out.
  */
-function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis = null, bailoutPlayers = new Set() }) {
+function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis = null, bailoutPlayers = new Set(), holderRate = 0 }) {
   const writes = { holdings: [], buybacksClosed: [], assets: [], buybacksStarted: [], assetEvaluations: [], payouts: [], accountsOpened: [], moves: [] };
   const ledger = { referenceType: "weekly_evaluation", referenceId: evaluationId };
   const byUser = new Map(); // userId → { dividends, fees, forced: [...], buybacks: [...], waived: [...] }
@@ -396,6 +397,7 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
   const shiftZ = rankScores(shifts);
   let dividendsTotal = 0;
   let feesTotal = 0;
+  let holderTotal = 0;
   const waivedTotals = { amount: 0, shares: 0, players: new Set() };
   for (const [index, asset] of assets.entries()) {
     const result = results.get(String(asset.id));
@@ -403,32 +405,52 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
     const rate = dividendRate(z);
     const basis = toNumber(asset.avg_base, 0); // revealed base rates only; none known means no payout
     const perShare = rate * basis;
-    Object.assign(result, { shift: Number.isFinite(shifts[index]) ? shifts[index] : null, z, rate, basis, perShare, paid: 0, waived: 0 });
-    if (!perShare) continue;
+    // The holder dividend (the market package, marketPackage.js): on every share of every stock with a
+    // known basis, rookies and dead-zone stocks too, on top of the ranked rate. 0 while it's off.
+    const holderPerShare = holderRate > 0 ? holderRate * basis : 0;
+    Object.assign(result, { shift: Number.isFinite(shifts[index]) ? shifts[index] : null, z, rate, basis, perShare, holderPerShare, paid: 0, holderPaid: 0, waived: 0 });
+    if (!perShare && !holderPerShare) continue;
     for (const holder of holdersOf(asset.id)) {
-      const full = Math.round(holder.quantity * perShare * 100) / 100;
-      // A fee on the player's oshi skips the shares they held all week (never more than they hold
-      // now, after any forced buyback above): it charges the rest, and `waived` is what it skipped.
-      const fewest = perShare < 0 ? fewestHeld.get(`${holder.userId}:${asset.id}`) : undefined;
-      const covered = fewest ? Math.floor(Math.min(holder.quantity, fewest) * 1e6 + 1e-6) / 1e6 : 0;
-      const charged = covered > 0 ? Math.max(0, Math.round((holder.quantity - covered) * 1e6) / 1e6) : holder.quantity;
-      const amount = covered > 0 ? Math.round(charged * perShare * 100) / 100 || 0 : full;
-      const waived = covered > 0 ? Math.round((amount - full) * 100) / 100 : 0;
-      if (!amount && !waived) continue;
+      let amount = 0;
+      let waived = 0;
+      let covered = 0;
+      if (perShare) {
+        const full = Math.round(holder.quantity * perShare * 100) / 100;
+        // A fee on the player's oshi skips the shares they held all week (never more than they hold
+        // now, after any forced buyback above): it charges the rest, and `waived` is what it skipped.
+        const fewest = perShare < 0 ? fewestHeld.get(`${holder.userId}:${asset.id}`) : undefined;
+        covered = fewest ? Math.floor(Math.min(holder.quantity, fewest) * 1e6 + 1e-6) / 1e6 : 0;
+        const charged = covered > 0 ? Math.max(0, Math.round((holder.quantity - covered) * 1e6) / 1e6) : holder.quantity;
+        amount = covered > 0 ? Math.round(charged * perShare * 100) / 100 || 0 : full;
+        waived = covered > 0 ? Math.round((amount - full) * 100) / 100 : 0;
+      }
+      const holderAmount = holderPerShare ? Math.round(holder.quantity * holderPerShare * 100) / 100 || 0 : 0;
+      if (!amount && !waived && !holderAmount) continue;
       // Dividends pay Credit; share fees come out of Credit first, then Cash (which can go below zero).
-      if (amount) {
+      if (amount || holderAmount) {
         const wallet = walletOf(holder.userId, { opening: "starter" });
         if (amount > 0) move(holder.userId, { assetId: asset.id, entryType: "dividend", credit: Math.max(0, amount) });
-        else {
+        else if (amount < 0) {
           const split = economy.splitCharge({ cash: pgNumeric.toNumber(wallet.cash), credit: pgNumeric.toNumber(wallet.credit) }, -amount, "credit_then_cash", { shortfall: "cash" });
           move(holder.userId, { assetId: asset.id, entryType: "share_fee", cash: -split.cash, credit: -split.credit });
         }
+        if (holderAmount > 0) move(holder.userId, { assetId: asset.id, entryType: "dividend", credit: holderAmount });
       }
-      writes.payouts.push({ userId: holder.userId, assetId: asset.id, quantity: holder.quantity, perShare, amount, protectedQuantity: covered, waived });
+      // amount is everything the stock paid or charged this holder (the holder dividend included);
+      // holderAmount is that part on its own.
+      const total = holderAmount ? Math.round((amount + holderAmount) * 100) / 100 : amount;
+      writes.payouts.push({ userId: holder.userId, assetId: asset.id, quantity: holder.quantity, perShare, amount: total, protectedQuantity: covered, waived, ...(holderPerShare ? { holderAmount } : {}) });
       const entry = userEntry(holder.userId);
       if (amount > 0) entry.dividends += amount;
       else entry.fees += amount;
-      entry.lines.push({ symbol: asset.symbol, amount });
+      if (holderAmount > 0) {
+        entry.dividends += holderAmount;
+        result.holderPaid += holderAmount;
+        holderTotal += holderAmount;
+        dividendsTotal += holderAmount;
+      }
+      result.paid += holderAmount;
+      entry.lines.push({ symbol: asset.symbol, amount: total });
       if (waived) {
         entry.waived.push({ symbol: asset.symbol, shares: covered, amount: waived, rate });
         waivedTotals.amount += waived;
@@ -488,6 +510,7 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
       rate: round(result.rate),
       basis: round(result.basis),
       perShare: round(result.perShare),
+      ...(result.holderPerShare ? { holderPerShare: round(result.holderPerShare) } : {}),
       held: round(result.held),
       subscribers: asset.subscriber_count,
       maxBefore: before,
@@ -509,6 +532,8 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
       rate: round(result.rate),
       per_share: round(result.perShare),
       paid: round(result.paid, 2),
+      // The market package's holder dividend, when this review paid one: per share and the stock's total.
+      ...(result.holderPerShare ? { holder_per_share: round(result.holderPerShare), holder_paid: round(result.holderPaid, 2) } : {}),
       held: round(result.held),
       max_supply_before: result.maxBefore,
       max_supply_after: result.maxAfter,
@@ -527,6 +552,8 @@ function planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, ass
     on_demand: onDemand,
     asset_count: rows.length,
     dividends_total: round(dividendsTotal, 2),
+    // The holder dividend's rate and total (already in dividends_total), when this review paid one.
+    ...(holderRate > 0 ? { holder_dividend_rate: holderRate, holder_dividends_total: round(holderTotal, 2) } : {}),
     fees_total: round(feesTotal, 2),
     credit_conversion_rate: conversion.rate ?? 0,
     credit_conversion_minimum: conversion.minimum ?? 0,
@@ -640,15 +667,15 @@ async function applyEvaluation(client, evaluationId, { report, writes, notices }
       FROM jsonb_to_recordset($3::jsonb) AS b("assetId" bigint, "frozenPrice" numeric, "targetMaxSupply" numeric, "heldAtStart" numeric)
     ),
     lines AS (
-      INSERT INTO market.weekly_asset_evaluations (evaluation_id, asset_id, value_now, value_before, shift, z_score, dividend_rate, value_basis, per_share, held, subscribers, max_supply_before, max_supply_after, buyback_action)
-      SELECT $1, e."assetId", e."valueNow", e."valueBefore", e.shift, e.z, e.rate, e.basis, e."perShare", e.held, e.subscribers, e."maxBefore", e."maxAfter", e."buybackAction"
+      INSERT INTO market.weekly_asset_evaluations (evaluation_id, asset_id, value_now, value_before, shift, z_score, dividend_rate, value_basis, per_share, held, subscribers, max_supply_before, max_supply_after, buyback_action, holder_per_share)
+      SELECT $1, e."assetId", e."valueNow", e."valueBefore", e.shift, e.z, e.rate, e.basis, e."perShare", e.held, e.subscribers, e."maxBefore", e."maxAfter", e."buybackAction", COALESCE(e."holderPerShare", 0)
       FROM jsonb_to_recordset($4::jsonb) AS e("assetId" bigint, "valueNow" numeric, "valueBefore" numeric, shift numeric, z numeric, rate numeric,
-        basis numeric, "perShare" numeric, held numeric, subscribers bigint, "maxBefore" numeric, "maxAfter" numeric, "buybackAction" text)
+        basis numeric, "perShare" numeric, held numeric, subscribers bigint, "maxBefore" numeric, "maxAfter" numeric, "buybackAction" text, "holderPerShare" numeric)
     ),
     payouts AS (
-      INSERT INTO market.dividend_payouts (evaluation_id, user_id, asset_id, quantity, per_share, amount, protected_quantity, waived)
-      SELECT $1, p."userId", p."assetId", p.quantity, p."perShare", p.amount, COALESCE(p."protectedQuantity", 0), COALESCE(p.waived, 0)
-      FROM jsonb_to_recordset($5::jsonb) AS p("userId" bigint, "assetId" bigint, quantity numeric, "perShare" numeric, amount numeric, "protectedQuantity" numeric, waived numeric)
+      INSERT INTO market.dividend_payouts (evaluation_id, user_id, asset_id, quantity, per_share, amount, protected_quantity, waived, holder_amount)
+      SELECT $1, p."userId", p."assetId", p.quantity, p."perShare", p.amount, COALESCE(p."protectedQuantity", 0), COALESCE(p.waived, 0), COALESCE(p."holderAmount", 0)
+      FROM jsonb_to_recordset($5::jsonb) AS p("userId" bigint, "assetId" bigint, quantity numeric, "perShare" numeric, amount numeric, "protectedQuantity" numeric, waived numeric, "holderAmount" numeric)
     )
     UPDATE market.weekly_evaluations SET status = 'completed', completed_at = now(), report_json = $6::jsonb WHERE id = $1
   `,
@@ -813,7 +840,7 @@ async function evaluate(pool, { evalDate, dryRun, onDemand, redis, logger }) {
     // Oshi protection looks back to the Saturday 00:00 ET before this one. The holdings are locked
     // already, so no fill lands in between; an oshi change meanwhile only counts from next week.
     const protectedOshis = features.enabledFor(oshi.FLAG, "staff") ? await oshi.loadProtectedOshis(client, assets.map((asset) => asset.id), weekStartFor(evalDate), evaluationStartsAt(evalDate)) : null;
-    const plan = planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis, bailoutPlayers });
+    const plan = planEvaluation({ evalDate, evaluationId, firstEvaluation, onDemand, assets, activeBuybacks, holdings, wallets, protectedOshis, bailoutPlayers, holderRate: marketPackage.holderDividendRate() });
     plan.writes.offerCutoffAt = supply.offerCutoffBefore(onDemand ? new Date() : evaluationStartsAt(evalDate));
     plan.writes.lateShares = await startedLateShares(client, plan.writes.buybacksStarted, holdings, plan.writes.offerCutoffAt);
     report = plan.report;
@@ -953,7 +980,7 @@ async function listAssetEvaluations(pool, symbol, { limit = 12 } = {}) {
       FROM market.weekly_asset_evaluations wae
       JOIN market.weekly_evaluations e ON e.id = wae.evaluation_id AND e.status = 'completed'
     )
-    SELECT r.eval_date::text AS eval_date, r.on_demand, r.dividend_rate, r.per_share, r.shift, r.held,
+    SELECT r.eval_date::text AS eval_date, r.on_demand, r.dividend_rate, r.per_share, r.holder_per_share, r.shift, r.held,
            r.max_supply_before, r.max_supply_after, r.buyback_action, r.rank, r.of
     FROM ranked r JOIN market.market_assets a ON a.id = r.asset_id
     WHERE a.symbol = $1
@@ -970,7 +997,9 @@ async function listAssetEvaluations(pool, symbol, { limit = 12 } = {}) {
     // The week's channel growth (from revealed days only): ln ratio as a percent.
     growth_pct: row.shift === null ? null : round((Math.exp(Number(row.shift)) - 1) * 100, 2),
     held: toNumber(row.held, 0),
-    paid: round(toNumber(row.per_share, 0) * toNumber(row.held, 0), 2),
+    // The market package's holder dividend per share, on top of the ranked per_share (0 when none).
+    holder_per_share: toNumber(row.holder_per_share, 0),
+    paid: round((toNumber(row.per_share, 0) + toNumber(row.holder_per_share, 0)) * toNumber(row.held, 0), 2),
     max_supply_before: row.max_supply_before === null ? null : toNumber(row.max_supply_before, 0),
     max_supply_after: row.max_supply_after === null ? null : toNumber(row.max_supply_after, 0),
     buyback_action: row.buyback_action,
@@ -993,7 +1022,7 @@ async function getEvaluation(pool, evalDate = null) {
 async function listUserDividends(pool, userId, { limit = 8 } = {}) {
   const { rows } = await pool.query(
     `
-    SELECT e.eval_date::text AS eval_date, a.symbol, a.display_name, p.quantity, p.per_share, p.amount, p.protected_quantity, p.waived
+    SELECT e.eval_date::text AS eval_date, a.symbol, a.display_name, p.quantity, p.per_share, p.amount, p.protected_quantity, p.waived, p.holder_amount
     FROM market.dividend_payouts p
     JOIN market.weekly_evaluations e ON e.id = p.evaluation_id
     JOIN market.market_assets a ON a.id = p.asset_id
@@ -1020,6 +1049,8 @@ async function listUserDividends(pool, userId, { limit = 8 } = {}) {
       quantity: toNumber(row.quantity, 0),
       per_share: toNumber(row.per_share, 0),
       amount,
+      // The holder dividend within amount (0 when none).
+      holder_amount: toNumber(row.holder_amount, 0),
       oshi_protected_quantity: toNumber(row.protected_quantity, 0),
       oshi_waived: waived,
     });

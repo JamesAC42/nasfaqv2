@@ -5,7 +5,8 @@ const DEFAULT_MAX_SUPPLY = 10_000;
 // Circulating = shares players hold (nobody at listing); the weekly evaluation sets max shares.
 const DEFAULT_INITIAL_CIRCULATING_SUPPLY = 0;
 const DEFAULT_BASE_EMISSION = 0;
-const DEFAULT_SPREAD_BPS = 400;
+// A new stock's spread: the market package's while it's on (marketPackage.js), the old 4% otherwise.
+const { listingSpreadBps } = require("./marketPackage");
 const DEFAULT_MARKET_DATA_TIME_ZONE = "America/New_York";
 
 function getQueryTimeZone() {
@@ -150,7 +151,7 @@ async function bootstrapAssetsWithClient(client, { activeOnly = true, syncExisti
           treasurySupply,
           DEFAULT_BASE_EMISSION,
           liquidityDepth,
-          DEFAULT_SPREAD_BPS,
+          listingSpreadBps(),
           newAssetStatus === "active" ? "active" : "prelaunch",
         ]
       );
@@ -394,6 +395,7 @@ const RESET_TABLES = [
   "market.asset_daily_market_state",
   "market.daily_market_reports",
   "market.market_settlement_runs",
+  "market.fair_value_growth",
   "market.fundamental_calculation_runs",
   "market.adjustment_sessions",
   "market.asset_adjustment_intervals",

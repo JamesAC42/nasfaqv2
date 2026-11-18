@@ -491,6 +491,9 @@ export type EvaluationRow = {
   buyback: string | null;
   /** Share fees oshi protection skipped on this stock (only when it skipped some). */
   oshi_waived?: number;
+  /** The holder dividend every share got, and its total (already in `paid`); only when the review paid one. */
+  holder_per_share?: number;
+  holder_paid?: number;
 };
 
 /** The Weekly Evaluation (Saturday 00:00 ET): dividends and fees, max shares, buybacks. */
@@ -500,6 +503,9 @@ export type WeeklyEvaluation = {
   first_evaluation: boolean;
   asset_count: number;
   dividends_total: number;
+  /** The holder dividend's rate (of each stock's week-average price, per share) and its total (already in dividends_total); only when the review paid one. */
+  holder_dividend_rate?: number;
+  holder_dividends_total?: number;
   fees_total: number;
   /** Credit turned into Cash this week (reviews before Credit don't have these). */
   credit_conversion_rate?: number;
@@ -530,8 +536,8 @@ export type MyDividendWeek = {
   net: number;
   /** The share fees your oshi skipped that week (positive; only with the oshi-protection flag). */
   oshi_waived?: number;
-  /** oshi_protected_quantity / oshi_waived: oshi shares held all week that skipped a fee, and the fee. */
-  lines: Array<{ symbol: string; display_name: string; quantity: number; per_share: number; amount: number; oshi_protected_quantity?: number; oshi_waived?: number }>;
+  /** oshi_protected_quantity / oshi_waived: oshi shares held all week that skipped a fee, and the fee. holder_amount: the holder dividend within amount (0 when none). */
+  lines: Array<{ symbol: string; display_name: string; quantity: number; per_share: number; amount: number; holder_amount?: number; oshi_protected_quantity?: number; oshi_waived?: number }>;
 };
 
 export type DividendBoardWindow = "latest" | "all";
@@ -870,6 +876,10 @@ export type PortfolioHolding = {
   unrealized_pnl: number;
   /** In a buyback: how many of these shares can still get the offer (those held before its cutoff); null when not in one. */
   buyback_offer_shares?: number | null;
+  /** While the fee is only on quick sells: the shares a sale right now would pay it on (bought in the last day). Absent otherwise. */
+  fee_shares?: number | null;
+  /** When the last of those shares stops paying the fee (ISO), or null when none do. */
+  fee_free_at?: string | null;
 };
 
 export type PortfolioSummary = {
@@ -897,6 +907,10 @@ export type EconomySettings = {
   /** The conversion is at least this much (or all of a smaller balance). */
   weekly_conversion_minimum?: number;
   sell_credit_rate: number;
+  /** The trading fee (api marketPackage.publicFeeRule): its rate, and whether every trade pays it or only sales of shares bought in the last `quick_sell_hours`. */
+  fee_rate?: number;
+  fee_on?: "all_trades" | "quick_sells";
+  quick_sell_hours?: number | null;
 };
 
 export type PortfolioOrder = {

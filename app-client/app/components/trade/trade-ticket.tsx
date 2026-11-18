@@ -16,7 +16,8 @@ import { getMarketClock, ORDER_BATCH_MS } from "@/app/lib/market-clock";
 import { useTimeFormat } from "@/app/lib/use-display-time";
 import { money } from "@/app/lib/time";
 import { buildTradeConfirmation, getTradeFailureNotice, type TradeConfirmation, type TradeExecutionResult, type TradeFailureNotice, type TradeSide } from "@/app/lib/trade";
-import { BIG_ORDER_SLIP, FEE_RATE, fillPrice, maxBuyShares, maxSellShares, orderTotals, slippageFraction, stepShares } from "@/app/lib/trade-estimate.mjs";
+import { BIG_ORDER_SLIP, FEE_RATE, fillPrice, maxBuyShares, maxSellShares, orderTotals, saleFeeShares, slippageFraction, stepShares } from "@/app/lib/trade-estimate.mjs";
+import { useFeature } from "@/app/lib/features";
 import type { MarketAsset } from "@/app/lib/types";
 import { useNowEvery } from "@/app/lib/use-now";
 import { useAuth } from "@/app/providers/auth-provider";
@@ -31,6 +32,36 @@ import { Term } from "@/app/components/common/tip";
 
 const PRESETS = [1, 10, 25, 50, 100];
 export { FEE_RATE };
+
+/** Who pays the trading fee: every trade, or (the market package) only sales of shares bought in the last `hours`. */
+export type FeeRule = { rate: number; quickSellsOnly: boolean; hours: number };
+
+/**
+ * The fee rule in force: from the portfolio when there is one (the API says it there), else from the
+ * market-wide market-package flag, which is the same answer for everyone.
+ */
+export function useFeeRule(): FeeRule {
+  const economy = useProfileStore((state) => state.portfolio?.economy ?? null);
+  const flag = useFeature("market-package");
+  const quickSellsOnly = economy?.fee_on ? economy.fee_on === "quick_sells" : flag;
+  return { rate: economy?.fee_rate ?? FEE_RATE, quickSellsOnly, hours: economy?.quick_sell_hours ?? 24 };
+}
+
+/** "1%" for a fee rate of 0.01. */
+export function feePct(rate: number) {
+  return `${Number((rate * 100).toFixed(2))}%`;
+}
+
+/**
+ * How many of `quantity` shares of a holding a sale would pay the fee on, under `rule`: all of them,
+ * or the ones bought in the last day that queued sells haven't used up (all of them when the API
+ * didn't say how many are recent).
+ */
+export function feeSharesFor(rule: FeeRule, quantity: number, holding: { fee_shares?: number | null } | null | undefined, queued = 0) {
+  if (!rule.quickSellsOnly) return quantity;
+  const recent = holding?.fee_shares;
+  return recent === null || recent === undefined ? quantity : saleFeeShares({ quantity, recent, queued });
+}
 
 // Buying Towa takes some convincing: the submit button says each of these in turn before it sends anything.
 const TOWA_DOUBTS = ["ARE YOU SURE?", "I'D RECONSIDER", "EXPERTS ADVISE AGAINST THIS"];
@@ -323,15 +354,32 @@ export function TradeTicket({
   const depth = asset.liquidity_depth ?? null;
   const slip = toBroker ? 0 : slippageFraction(qty, depth);
   const price = quote === null || quote === undefined ? null : toBroker ? (brokerPlan ? buybackSell(brokerPlan, qty, yours).price : quote) : fillPrice(side, quote, qty, depth);
-  // The fee comes out of Credit first; Cash pays the shares and whatever Credit doesn't cover. A
-  // sale also earns a little Credit.
+  // The fee: on every share of every trade, or (the market package) none on buys and, on a sale, only
+  // the shares bought in the last day that queued sells (which fill first, newest shares first)
+  // haven't already taken. It comes out of Credit first; Cash pays the shares and whatever Credit
+  // doesn't cover. A sale also earns a little Credit.
+  const feeRule = useFeeRule();
+  const feeNow = useNowEvery(60_000);
+  const buyFeeRate = feeRule.quickSellsOnly ? 0 : feeRule.rate;
+  // Buys already queued on this stock fill first too, and their shares are recent when this sale lands.
+  const queuedBuys = pending.filter((order) => order.side === "buy" && order.symbol.toUpperCase() === symbol).reduce((sum, order) => sum + order.requested_quantity, 0);
+  const recentHolding = holding && holding.fee_shares !== null && holding.fee_shares !== undefined ? { fee_shares: holding.fee_shares + queuedBuys } : holding;
+  const feeShares = side === "buy" ? (feeRule.quickSellsOnly ? 0 : qty) : feeSharesFor(feeRule, qty, recentHolding, queuedSells);
   const { fee, feeFromCredit, total, creditEarned } = orderTotals({
     side,
     price: price ?? 0,
     quantity: qty,
     credit: portfolio?.credit_balance ?? 0,
     sellCreditRate: portfolio?.economy?.sell_credit_rate ?? 0,
+    feeRate: side === "buy" ? buyFeeRate : feeRule.rate,
+    feeShares,
   });
+  // The holding's recent shares that queued sells leave for this one (null when the API didn't say).
+  const recentLeft = holding?.fee_shares === null || holding?.fee_shares === undefined ? null : Math.max(0, holding.fee_shares + queuedBuys - queuedSells);
+  const sellPaysFee = qty > 0 ? feeShares > 0 : recentLeft !== 0;
+  const feeLabel = !feeRule.quickSellsOnly ? "Fee (~1%)" : side === "buy" ? "No fee on buys" : sellPaysFee ? `Fee (~${feePct(feeRule.rate)})` : "No fee";
+  const feeFreeAt = holding?.fee_free_at ? new Date(holding.fee_free_at) : null;
+  const feeFreeIn = feeFreeAt && Number.isFinite(feeFreeAt.getTime()) && feeFreeAt.getTime() > feeNow ? feeFreeAt : null;
   const tradingOpen = marketStatus?.is_trading_open ?? true;
   const clock = getMarketClock(batchNow);
   const batchAt = asset.next_live_order_execute_after ? new Date(asset.next_live_order_execute_after) : clock.nextBatchAt;
@@ -353,6 +401,7 @@ export function TradeTicket({
           credit: portfolio.credit_balance,
           room: Number.isFinite(room) ? room : null,
           forSale,
+          feeRate: buyFeeRate,
         })
       : null;
   const maxShares = side === "buy" ? maxBuy : canSell ? maxSell.shares : null;
@@ -521,7 +570,7 @@ export function TradeTicket({
               <dt>Shares</dt>
               <dd>{qty.toLocaleString("en-US")}</dd>
               <dt>
-                <Term k="fee">Fee (~1%)</Term>
+                <Term k="fee">{feeLabel}</Term>
               </dt>
               <dd>
                 {money(fee)}
@@ -538,6 +587,12 @@ export function TradeTicket({
               <dt className={styles.total}>{side === "buy" ? "You pay" : "You get"}</dt>
               <dd className={styles.total}>{money(total)}</dd>
             </dl>
+            {feeRule.quickSellsOnly && side === "sell" && recentLeft !== null && feeShares > 0 ? (
+              <p className={styles.note} suppressHydrationWarning>
+                {feePct(feeRule.rate)} fee on the {feeShares.toLocaleString("en-US")} share{feeShares === 1 ? "" : "s"} bought in the last {feeRule.hours}h
+                {feeFreeIn ? `; fee-free from ${tf.clock(feeFreeIn)} (in ${untilText(feeFreeIn.getTime() - feeNow)})` : ""}
+              </p>
+            ) : null}
             {slip >= BIG_ORDER_SLIP && qty > 0 ? (
               <p className={styles.note}>
                 Big order: about {(slip * 100).toFixed(1)}% <Term k="slippage">price impact</Term>

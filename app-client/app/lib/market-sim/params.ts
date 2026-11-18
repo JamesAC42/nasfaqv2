@@ -5,20 +5,25 @@ import type { SimParams, SimSettings } from "./types";
 
 export const RUN_LIMITS = { days: { min: 7, max: 180 }, seeds: { min: 1, max: 60 } } as const;
 
-/** The settings the market runs on now, from the inputs. A null spread keeps each stock's own. */
+/**
+ * The settings the market runs on now, from the inputs. A null spread keeps each stock's own (which
+ * already carries the market package's spread when it's on); the package's fee rule, growth and
+ * holder dividend come from `market_package`.
+ */
 export function todayParams(settings: SimSettings, run: Pick<SimParams, "days" | "seeds" | "seed"> = { days: 60, seeds: 12, seed: 1 }): SimParams {
+  const marketPackage = settings.market_package === true;
   return {
     spreadBps: null,
     feeRate: settings.fee_rate,
-    feeOnlyOnQuickSells: false,
+    feeOnlyOnQuickSells: marketPackage,
     quickSellHours: 24,
     slippageWeight: settings.slippage_weight,
     transientWeight: settings.transient_weight,
     persistentWeight: settings.persistent_weight,
     persistentDecay: settings.persistent_daily_decay,
     strengthTotalPct: settings.strength_total_pct,
-    driftPerDay: 0,
-    dividendTiltPerWeek: 0,
+    driftPerDay: marketPackage ? 0.0005 : 0,
+    dividendTiltPerWeek: marketPackage ? 0.0025 : 0,
     dividendPerSigma: settings.dividend.rate_per_sigma,
     deadzoneSigma: settings.dividend.deadzone_sigma,
     dividendCap: settings.dividend.cap,

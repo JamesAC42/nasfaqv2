@@ -18,6 +18,7 @@
 // explains the tick that happened and never a trend. test/tick-drivers.test.js holds it to that.
 
 const targetNudge = require("./targetNudge");
+const fairValueGrowth = require("./fairValueGrowth");
 
 const DAY_MS = 86_400_000;
 const EPS = 1e-9;
@@ -477,7 +478,8 @@ async function loadTickContext(client, intervals, { now = new Date(), timeZone =
   const context = { timeZone, previous: new Map(), fills: new Map(), channelOf: new Map(), snapshots: new Map(), peaks: new Map(), targetNudge: targetNudge.OFF };
   const assetIds = [...new Set(intervals.map((interval) => String(interval.asset_id)))];
   if (!assetIds.length) return context;
-  context.targetNudge = await targetNudge.loadGate(client, { inTransaction: true });
+  // The nudge with the market package's growth folded in (fairValueGrowth.js): both sit on fair value.
+  context.targetNudge = await fairValueGrowth.loadFairValueGate(client, { inTransaction: true });
 
   const { rows: previousRows } = await client.query(
     `

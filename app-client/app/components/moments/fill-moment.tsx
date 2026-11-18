@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { Oshimark } from "@/app/components/common/oshimark";
-import { FEE_RATE } from "@/app/components/trade/trade-ticket";
+import { feePct, useFeeRule } from "@/app/components/trade/trade-ticket";
 import { getMarketClock } from "@/app/lib/market-clock";
 import { normalizeMarketHubTrade } from "@/app/lib/normalizers";
 import { talentAccent } from "@/app/lib/talent-color";
@@ -214,15 +214,23 @@ function useLearning() {
 
 /** In place of the greentext on a new player's buy: what the shares are worth, and what moves them next. */
 function WhatHappensNow({ fill, asset, tick, until, onLeave }: { fill: Slide; asset: MarketAsset | null; tick: string; until: string; onLeave: () => void }) {
+  // Shares just bought pay the fee if sold now under either rule (with the market package, a sale
+  // within a day of buying pays it); the package only changes what the line says about later.
+  const rule = useFeeRule();
   const bid = asset?.current_bid_price ?? asset?.current_mid_price ?? null;
-  const worth = bid !== null && Number.isFinite(bid) ? bid * fill.quantity * (1 - FEE_RATE) : null;
+  const worth = bid !== null && Number.isFinite(bid) ? bid * fill.quantity * (1 - rule.rate) : null;
   return (
     <div className={styles.next}>
       <span className={styles.hdr}>
         <b>What happens now</b>
       </span>
       <ul>
-        {worth !== null ? <li>Sold right now, these would bring about {money(worth)} (the bid, less the 1% fee).</li> : null}
+        {worth !== null ? (
+          <li>
+            Sold right now, these would bring about {money(worth)}{" "}
+            {rule.quickSellsOnly ? `(the bid, less the ${feePct(rule.rate)} fee; after ${rule.hours}h, no fee).` : "(the bid, less the 1% fee)."}
+          </li>
+        ) : null}
         <li>
           The price moves whenever players trade, and at the {tick} tick in {until}, when it&apos;s pulled toward {fill.symbol}&apos;s hidden fair value.
         </li>

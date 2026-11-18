@@ -2231,6 +2231,22 @@ async function applySchema(pool) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+
+  // The market package (services/marketPackage.js, behind the market-package flag). Growth: one row
+  // per market date its regular settlement recorded, log_growth being the growth so far that fair
+  // values carry on that date (services/fairValueGrowth.js). Empty until the package first goes on.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS market.fair_value_growth (
+      market_date DATE PRIMARY KEY,
+      log_growth DOUBLE PRECISION NOT NULL,
+      per_day DOUBLE PRECISION NOT NULL DEFAULT 0,
+      recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  // The holder dividend each review paid (on top of the ranked dividend or fee, already in amount and
+  // in the payout's total): per share for the stock, and what one holder got.
+  await pool.query(`ALTER TABLE market.weekly_asset_evaluations ADD COLUMN IF NOT EXISTS holder_per_share NUMERIC NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE market.dividend_payouts ADD COLUMN IF NOT EXISTS holder_amount NUMERIC NOT NULL DEFAULT 0`);
 }
 
 module.exports = { applySchema };
