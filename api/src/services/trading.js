@@ -18,6 +18,7 @@ const LIVE_ORDER_LANDING_TRADES = 200;
 const marketState = require("./marketState");
 const supply = require("./marketSupply");
 const netWorth = require("./netWorth");
+const marketPackage = require("./marketPackage");
 const achievements = require("./achievements");
 const liveOrderBatch = require("./liveOrderBatch");
 const pgNumeric = require("./pgNumeric");
@@ -137,10 +138,15 @@ function computeQuotes(midPrice, spreadBps) {
   };
 }
 
+/** The fee rate a buy pays: none with the market package on (marketPackage.js), the trading fee otherwise. */
+function buyFeeRate() {
+  return marketPackage.isOn() ? 0 : getTradingFeeRate();
+}
+
 /** What buying one share costs at this stock's mid price, fee included: the ask and its slippage, plus the fee. */
 function oneShareCost(asset) {
   const { bidPrice, askPrice } = computeQuotes(toNumber(asset.current_mid_price, 0), asset.spread_bps);
-  return computeExecutionPrice({ side: "buy", bidPrice, askPrice, quantity: 1, liquidityDepth: asset.liquidity_depth }) * (1 + getTradingFeeRate());
+  return computeExecutionPrice({ side: "buy", bidPrice, askPrice, quantity: 1, liquidityDepth: asset.liquidity_depth }) * (1 + buyFeeRate());
 }
 
 async function getLockedAssetBySymbol(client, symbol, { lock = true } = {}) {
@@ -602,6 +608,13 @@ async function executeOrder(pool, {
     const holding = await getLockedHolding(client, effectiveUserId, asset.id);
     const feeRate = getTradingFeeRate();
     const now = new Date();
+    // The market package (marketPackage.js): buys pay no fee, a sale pays it on the shares it takes
+    // from the last day's buys (newest first). Read with the holding locked, so no fill lands between.
+    const packageOn = marketPackage.isOn();
+    const lots =
+      packageOn && effectiveSide === "sell"
+        ? marketPackage.recentLots((await marketPackage.loadRecentFills(client, [[effectiveUserId, asset.id]], now)).get(`${Number(effectiveUserId)}:${Number(asset.id)}`), now)
+        : [];
     const fairPrice = Math.max(toNumber(asset.current_fair_value, 0), 0.000001);
     const { mid: startingMid, persistentOffset, transientOffset } = startingQuote(asset, fairPrice);
     const liveMidBefore = buyback ? toNumber(asset.current_mid_price, 0) : startingMid;
@@ -624,7 +637,7 @@ async function executeOrder(pool, {
     }
 
     const grossCash = executablePrice * parsedQuantity;
-    const feeCash = grossCash * feeRate;
+    const { feeCash } = marketPackage.fillFee({ side: effectiveSide, price: executablePrice, quantity: parsedQuantity, feeRate, lots, held: toNumber(holding?.quantity, 0), on: packageOn });
     // The trading fee comes out of Credit first, Cash covering the rest; a sale also earns a little
     // Credit (services/economy.js).
     const creditBalance = toNumber(cashAccount.credit_balance, 0);
@@ -715,16 +728,19 @@ async function executeOrder(pool, {
         referenceType: "trade_fill",
         referenceId: fillRow.id,
       });
-      await insertLedgerEntry(client, {
-        userId: effectiveUserId,
-        assetId: asset.id,
-        entryType: "trade_fee",
-        quantityDelta: 0,
-        cashDelta: -feeFromCash,
-        creditDelta: -feeFromCredit,
-        referenceType: "trade_fill",
-        referenceId: fillRow.id,
-      });
+      // A fill that paid no fee (the market package) gets no fee row.
+      if (!packageOn || feeCash > 0) {
+        await insertLedgerEntry(client, {
+          userId: effectiveUserId,
+          assetId: asset.id,
+          entryType: "trade_fee",
+          quantityDelta: 0,
+          cashDelta: -feeFromCash,
+          creditDelta: -feeFromCredit,
+          referenceType: "trade_fill",
+          referenceId: fillRow.id,
+        });
+      }
     } else {
       nextCash = currentCash + grossCash - feeFromCash;
       nextQuantity = currentQuantity - parsedQuantity;
@@ -748,16 +764,18 @@ async function executeOrder(pool, {
         referenceType: "trade_fill",
         referenceId: fillRow.id,
       });
-      await insertLedgerEntry(client, {
-        userId: effectiveUserId,
-        assetId: asset.id,
-        entryType: "trade_fee",
-        quantityDelta: 0,
-        cashDelta: -feeFromCash,
-        creditDelta: -feeFromCredit,
-        referenceType: "trade_fill",
-        referenceId: fillRow.id,
-      });
+      if (!packageOn || feeCash > 0) {
+        await insertLedgerEntry(client, {
+          userId: effectiveUserId,
+          assetId: asset.id,
+          entryType: "trade_fee",
+          quantityDelta: 0,
+          cashDelta: -feeFromCash,
+          creditDelta: -feeFromCredit,
+          referenceType: "trade_fill",
+          referenceId: fillRow.id,
+        });
+      }
       if (creditEarned > 0) {
         await insertLedgerEntry(client, {
           userId: effectiveUserId,
@@ -1134,7 +1152,8 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
     }
 
     const indicativeGrossCash = indicativePrice * parsedQuantity;
-    const indicativeFeeCash = indicativeGrossCash * getTradingFeeRate();
+    // Only a buy's estimate matters here (what it holds); with the market package on, buys pay no fee.
+    const indicativeFeeCash = indicativeGrossCash * buyFeeRate();
     // The fee comes out of Credit first, so Cash only has to cover the rest of it.
     const indicativeFeeFromCash = Math.max(0, indicativeFeeCash - Math.max(0, toNumber(cashAccount.credit_balance, 0)));
     if (normalizedSide === "buy" && toNumber(cashAccount.cash_balance, 0) < indicativeGrossCash + indicativeFeeFromCash) {
@@ -1221,7 +1240,7 @@ async function submitLiveOrder(pool, { userId, symbol, side, quantity, redis = n
         JSON.stringify({
           queued_mid_price: roundForMetadata(liveMidBefore),
           queued_indicative_price: roundForMetadata(indicativePrice),
-          queued_fee_rate: getTradingFeeRate(),
+          queued_fee_rate: normalizedSide === "buy" ? buyFeeRate() : getTradingFeeRate(),
           live_order_share_limit: LIVE_ORDER_SHARE_LIMIT_PER_INTERVAL,
           submitted_interval_scheduled_at: interval.scheduledAt || null,
         }),
@@ -1522,8 +1541,11 @@ function floorNumericAtZero(value) {
  *
  * Mutates the rows it's given. Returns what to write (liveOrderBatch.writeChunk) and to announce.
  */
-function planLiveOrderChunk({ orders, assets, buybacks, lateShares = new Map(), accounts, holdings, identities, status, now }) {
+function planLiveOrderChunk({ orders, assets, buybacks, lateShares = new Map(), accounts, holdings, identities, status, now, recentFills = new Map() }) {
   const feeRate = getTradingFeeRate();
+  // The market package (marketPackage.js): `recentFills` ("userId:assetId" → the last day's fills,
+  // oldest first, from lockChunk) say which shares a sale pays the fee on; fills in this chunk join them.
+  const packageOn = marketPackage.isOn();
   const marketDate = status?.last_settlement_market_date || null;
   const fills = [];
   const rejections = [];
@@ -1608,7 +1630,8 @@ function planLiveOrderChunk({ orders, assets, buybacks, lateShares = new Map(), 
       if (!(executablePrice > 0)) throw coded("invalid_quote");
 
       const grossCash = executablePrice * parsedQuantity;
-      const feeCash = grossCash * feeRate;
+      const lots = packageOn && side === "sell" ? marketPackage.recentLots(recentFills.get(holdingKey), now) : [];
+      const { feeCash } = marketPackage.fillFee({ side, price: executablePrice, quantity: parsedQuantity, feeRate, lots, held: toNumber(holding?.quantity, 0), on: packageOn });
       const creditBalance = toNumber(account.credit_balance, 0);
       const feeFromCredit = Math.min(Math.max(creditBalance, 0), feeCash);
       const feeFromCash = feeCash - feeFromCredit;
@@ -1650,14 +1673,14 @@ function planLiveOrderChunk({ orders, assets, buybacks, lateShares = new Map(), 
         nextAvgCost = nextQuantity > 0 ? (currentQuantity * currentAvgCost + grossCash + feeCash) / nextQuantity : 0;
         onFill({ entryType: "buy_asset_credit", quantityDelta: parsedQuantity, cashDelta: 0 });
         onFill({ entryType: "buy_cash_debit", quantityDelta: 0, cashDelta: -grossCash });
-        onFill({ entryType: "trade_fee", quantityDelta: 0, cashDelta: -feeFromCash, creditDelta: -feeFromCredit });
+        if (!packageOn || feeCash > 0) onFill({ entryType: "trade_fee", quantityDelta: 0, cashDelta: -feeFromCash, creditDelta: -feeFromCredit });
       } else {
         nextCash = currentCash + grossCash - feeFromCash;
         nextQuantity = currentQuantity - parsedQuantity;
         nextAvgCost = nextQuantity > 0 ? currentAvgCost : 0;
         onFill({ entryType: "sell_asset_debit", quantityDelta: -parsedQuantity, cashDelta: 0 });
         onFill({ entryType: "sell_cash_credit", quantityDelta: 0, cashDelta: grossCash });
-        onFill({ entryType: "trade_fee", quantityDelta: 0, cashDelta: -feeFromCash, creditDelta: -feeFromCredit });
+        if (!packageOn || feeCash > 0) onFill({ entryType: "trade_fee", quantityDelta: 0, cashDelta: -feeFromCash, creditDelta: -feeFromCredit });
         if (creditEarned > 0) onFill({ entryType: "sell_credit", quantityDelta: 0, cashDelta: 0, creditDelta: creditEarned });
       }
 
@@ -1666,6 +1689,10 @@ function planLiveOrderChunk({ orders, assets, buybacks, lateShares = new Map(), 
       touchAccount(account);
       holdings.set(holdingKey, { user_id: userId, asset_id: assetId, quantity: nextQuantity, avg_cost_basis: nextAvgCost });
       touchedHoldings.add(holdingKey);
+      if (packageOn) {
+        if (!recentFills.has(holdingKey)) recentFills.set(holdingKey, []);
+        recentFills.get(holdingKey).push({ side, quantity: parsedQuantity, ts: now });
+      }
 
       const tracksDay = Boolean(asset.latest_snapshot_id && marketDate);
       if (buyback) {
@@ -2120,9 +2147,14 @@ async function getPortfolioSummary(pool, userId) {
   // No account yet (a player who has never looked or traded): open it now, once.
   if (!cashAccount) cashAccount = await openUserCashAccount(pool, userId);
 
-  const holdings = rows
-    .filter((row) => row.asset_id !== null)
-    .map((row) => ({
+  const held = rows.filter((row) => row.asset_id !== null);
+  // The market package: how many of each holding's shares a sale would pay the fee on right now, and
+  // when the last of them stops paying it. Absent while it's off (every trade pays the fee then).
+  const now = new Date();
+  const recentFills = marketPackage.isOn() && held.length ? await marketPackage.loadRecentFills(pool, held.map((row) => [userId, row.asset_id]), now) : null;
+  const holdings = held.map((row) => {
+    const lots = recentFills ? marketPackage.recentLots(recentFills.get(`${Number(userId)}:${Number(row.asset_id)}`), now) : null;
+    return {
       asset_id: row.asset_id,
       symbol: row.symbol,
       display_name: row.display_name,
@@ -2132,7 +2164,9 @@ async function getPortfolioSummary(pool, userId) {
       market_value: row.market_value,
       unrealized_pnl: row.unrealized_pnl,
       buyback_offer_shares: row.buyback_offer_shares === null ? null : toNumber(row.buyback_offer_shares, 0),
-    }));
+      ...(lots ? { fee_shares: marketPackage.recentShares(lots, toNumber(row.quantity, 0)), fee_free_at: marketPackage.feeFreeAt(lots, toNumber(row.quantity, 0)) } : {}),
+    };
+  });
   const totalMarketValue = holdings.reduce((sum, row) => sum + toNumber(row.market_value, 0), 0);
   const totalUnrealizedPnl = holdings.reduce((sum, row) => sum + toNumber(row.unrealized_pnl, 0), 0);
 
@@ -2152,8 +2186,9 @@ async function getPortfolioSummary(pool, userId) {
       toNumber(cashAccount.held_cash, 0) +
       (economy.SETTINGS.netWorth === "cash_and_credit" ? creditBalance : 0) +
       totalMarketValue,
-    // The Credit rules in force (some are still open: see services/economy.js).
-    economy: economy.publicSettings(),
+    // The Credit rules in force (some are still open: see services/economy.js), and who pays the
+    // trading fee (every trade, or only sales of shares bought in the last day: marketPackage.js).
+    economy: { ...economy.publicSettings(), ...marketPackage.publicFeeRule(getTradingFeeRate()) },
     holdings,
   };
 }

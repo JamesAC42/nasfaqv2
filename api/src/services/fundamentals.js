@@ -1,6 +1,6 @@
 const { bootstrapAssetsWithClient } = require("./marketAdmin");
 const { REFERENCE_SUPPLY } = require("./marketSupply");
-const targetNudge = require("./targetNudge");
+const fairValueGrowth = require("./fairValueGrowth");
 const FAIR_VALUE_SCALE_MULTIPLIER = Number(process.env.MARKET_PRICE_SCALE_MULTIPLIER || 100);
 const DEFAULT_MARKET_DATA_TIME_ZONE = "America/New_York";
 const SMOOTHING_PREVIOUS_WEIGHT = 0.4;
@@ -583,11 +583,11 @@ async function upsertCalculatedSnapshots(client, snapshots) {
 
 /**
  * Points every asset at its latest complete snapshot and prices its fair value from it, with the
- * same server-side daily factor settlement applies (targetNudge.js), so a refresh between
- * settlements never moves a stock's fair value off the one settlement gave it.
+ * same server-side daily factor and growth settlement applies (targetNudge.js, fairValueGrowth.js),
+ * so a refresh between settlements never moves a stock's fair value off the one settlement gave it.
  */
 async function refreshLatestAssetFairValues(client) {
-  const gate = await targetNudge.loadGate(client, { inTransaction: true });
+  const gate = await fairValueGrowth.loadFairValueGate(client, { inTransaction: true });
   if (gate.active) return refreshNudgedAssetFairValues(client, gate);
   const result = await client.query(
     `

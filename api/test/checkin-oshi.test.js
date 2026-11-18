@@ -10,6 +10,8 @@ const oshi = require("../src/services/oshi");
 const pgNumeric = require("../src/services/pgNumeric");
 const profileDb = require("../src/profileDb");
 const features = require("../src/features");
+// These tests check rules the market package changes (services/marketPackage.js), so they run with it off; market-package.test.js covers it on.
+require("../src/features").override({ "market-package": "off" });
 
 // The daily check-in (services/checkins.js), the oshi's 30-day rule (services/oshi.js) and the weekly
 // evaluation's oshi protection from share fees (services/weeklyEvaluation.js), each behind its feature

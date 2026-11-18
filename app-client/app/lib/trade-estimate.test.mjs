@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { clampShares, FEE_RATE, fillPrice, keyboardInset, maxBuyShares, maxSellShares, orderTotals, SLIPPAGE_WEIGHT, slippageFraction, stepShares } from "./trade-estimate.mjs";
+import { clampShares, FEE_RATE, fillPrice, keyboardInset, maxBuyShares, maxSellShares, orderTotals, saleFeeShares, SLIPPAGE_WEIGHT, slippageFraction, stepShares } from "./trade-estimate.mjs";
 
 // npm test runs from app-client/. The API's own numbers (api/test/market-sim.test.js keeps them honest).
 const parity = JSON.parse(readFileSync(join(process.cwd(), "..", "api", "test", "fixtures", "market-sim-parity.json"), "utf8"));
@@ -28,6 +28,56 @@ test("totals: the fee comes out of Credit first", () => {
   const sell = orderTotals({ side: "sell", price: 10, quantity: 10, credit: 5, sellCreditRate: 0.01 });
   close(sell.total, 100, "Credit paid the whole fee");
   close(sell.creditEarned, 1, "Credit earned");
+});
+
+test("totals with no fee rule given are the same as the fee on every share", () => {
+  for (const [side, price, quantity, credit] of [["buy", 12.24, 37, 0], ["sell", 7.5, 120, 0.3], ["buy", 0.33, 999, 50]]) {
+    const plain = orderTotals({ side, price, quantity, credit });
+    assert.deepEqual(orderTotals({ side, price, quantity, credit, feeRate: FEE_RATE, feeShares: quantity }), plain, `${side} ${quantity}`);
+    assert.deepEqual(orderTotals({ side, price, quantity, credit, feeRate: undefined, feeShares: null }), plain, `${side} ${quantity} with empty options`);
+    assert.equal(plain.fee, price * quantity * FEE_RATE);
+  }
+});
+
+test("market package: buys pay no fee", () => {
+  const buy = orderTotals({ side: "buy", price: 10, quantity: 10, credit: 5, feeRate: FEE_RATE, feeShares: 0 });
+  assert.equal(buy.fee, 0);
+  assert.equal(buy.feeFromCredit, 0, "Credit is left alone");
+  close(buy.total, 100, "Cash pays the shares only");
+  const zeroRate = orderTotals({ side: "buy", price: 10, quantity: 10, feeRate: 0 });
+  assert.equal(zeroRate.fee, 0);
+  close(zeroRate.total, 100, "a 0 rate is no fee too");
+});
+
+test("market package: a sale of old and recent shares pays the fee on the recent ones only", () => {
+  // Hold 50 old shares, bought 10 more an hour ago, sell 15: the fee is on the 10.
+  const feeShares = saleFeeShares({ quantity: 15, recent: 10, queued: 0 });
+  assert.equal(feeShares, 10);
+  const sell = orderTotals({ side: "sell", price: 10, quantity: 15, feeShares });
+  close(sell.fee, 1, "1% of 10 shares at 10");
+  close(sell.total, 149, "proceeds less that fee");
+  assert.equal(saleFeeShares({ quantity: 5, recent: 10 }), 5, "a sale smaller than the recent shares pays on all of it");
+  assert.equal(saleFeeShares({ quantity: 15, recent: 0 }), 0, "nothing recent, no fee");
+  assert.equal(orderTotals({ side: "sell", price: 10, quantity: 15, feeShares: 0 }).fee, 0);
+  assert.equal(saleFeeShares({ quantity: 15, recent: null }), 0);
+});
+
+test("market package: queued sells fill first and use up the recent shares", () => {
+  assert.equal(saleFeeShares({ quantity: 15, recent: 10, queued: 4 }), 6);
+  assert.equal(saleFeeShares({ quantity: 15, recent: 10, queued: 10 }), 0);
+  assert.equal(saleFeeShares({ quantity: 15, recent: 10, queued: 25 }), 0);
+  assert.equal(saleFeeShares({ quantity: 3, recent: 10, queued: 4 }), 3);
+});
+
+test("MAX buy with no fee on buys: Cash covers the shares alone", () => {
+  const ask = 12.24;
+  const depth = 2000;
+  const cash = 1000;
+  const cost = (quantity) => orderTotals({ side: "buy", price: fillPrice("buy", ask, quantity, depth), quantity, feeRate: 0 }).total;
+  const free = maxBuyShares({ ask, depth, cash, room: 180, feeRate: 0 });
+  assert.ok(cost(free) <= cash && cost(free + 1) > cash, `${free} shares`);
+  assert.ok(free >= maxBuyShares({ ask, depth, cash, room: 180 }), "no fee buys at least as many");
+  assert.equal(maxBuyShares({ ask, depth, cash, room: 180, feeRate: FEE_RATE }), maxBuyShares({ ask, depth, cash, room: 180 }), "the default is today's fee");
 });
 
 test("MAX buy: the most Cash covers at the slipped ask with the fee, within the allowance and the shares for sale", () => {

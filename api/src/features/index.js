@@ -6,6 +6,7 @@
 //   (everyone).
 // - forViewer(user): every flag as that viewer resolves it (GET /api/features).
 // - isEnabled(flag, user), and requireFeature(flag): Express middleware that 404s anyone without it.
+// - A market-wide flag ("market": true) is "off" or "on", never "staff"; marketOn(flag) reads it.
 // - A flag's "fields" are payload keys only its viewers get: forAudience(payload, audience) drops
 //   them anywhere in a payload for everyone else. Shared caches build one copy per audience
 //   (responseCache's `features` option, cacheKey); the market socket sends staff their own copy.
@@ -37,7 +38,12 @@ function readFlags(dir = __dirname) {
     if (!Array.isArray(fields) || fields.some((field) => typeof field !== "string" || !field)) {
       throw new Error(`feature flag ${key}: "fields" must be a list of payload keys`);
     }
-    flags.set(key, { key, state: spec.state, description: spec.description.trim(), fields: [...fields] });
+    // A market-wide flag changes the market itself (prices, fees, payouts), which is the same for
+    // everyone: it is off or on, never staff (admins can't trade under rules nobody else has).
+    if (spec.market !== undefined && typeof spec.market !== "boolean") throw new Error(`feature flag ${key}: "market" must be true or false`);
+    const market = spec.market === true;
+    if (market && spec.state === "staff") throw new Error(`feature flag ${key}: a market-wide flag is "off" or "on", never "staff"`);
+    flags.set(key, { key, state: spec.state, description: spec.description.trim(), fields: [...fields], market });
   }
   return flags;
 }
@@ -67,6 +73,9 @@ function enabledFor(key, audience) {
 
 /** Whether `flag` is on for this user (null when signed out). */
 const isEnabled = (key, user) => enabledFor(key, audienceOf(user));
+
+/** Whether a market-wide flag is on: one answer for everyone, and for jobs with no user. */
+const marketOn = (key) => enabledFor(key, "everyone");
 
 /** Whether `flag` is at "staff": its answer then depends on who's asking. */
 const staffOnly = (key) => flagOf(key)?.state === "staff";
@@ -147,7 +156,8 @@ function override(changes) {
   for (const [key, change] of Object.entries(changes)) {
     const { state, fields } = typeof change === "string" ? { state: change } : change;
     if (!STATES.includes(state)) throw new Error(`feature flag ${key}: unknown state ${state}`);
-    const current = flags.get(key) ?? { key, description: "test flag", fields: [] };
+    const current = flags.get(key) ?? { key, description: "test flag", fields: [], market: false };
+    if (current.market && state === "staff") throw new Error(`feature flag ${key}: a market-wide flag is "off" or "on", never "staff"`);
     flags.set(key, { ...current, state, fields: fields ? [...fields] : current.fields });
   }
   return () => {
@@ -166,6 +176,7 @@ module.exports = {
   forViewer,
   isEnabled,
   list,
+  marketOn,
   markPrivate,
   override,
   readFlags,

@@ -1848,12 +1848,14 @@ async function getAssetCandles(pool, symbol, { interval = "1d", range = "30d" } 
   // from its price the way trading.js priced it: the mid before is price ÷ (half the spread ×
   // slippage), and the trade's push moves it by exp(±impact × shares / depth). A sale into a buyback
   // leaves the frozen price where it was. The fills themselves come back as fill_low, fill_high and
-  // vwap. Spread and depth are today's, which is what the stock traded at since the last settlement.
+  // vwap. Depth is today's. The spread is the one in force when the fill landed: today's, or, for a
+  // fill from before a change at an Open (market.asset_spread_changes, marketPackage.syncSpreads),
+  // the old spread of the first change after it.
   const { IMPACT_SETTINGS } = require("./services/trading");
   const { rows } = await pool.query(
     `
     WITH asset AS (
-      SELECT id, GREATEST(COALESCE(spread_bps, 0), 0) / 20000.0 AS half_spread, GREATEST(COALESCE(liquidity_depth, 0), 1) AS depth
+      SELECT id, spread_bps, GREATEST(COALESCE(liquidity_depth, 0), 1) AS depth
       FROM market.market_assets
       WHERE symbol = $1
       LIMIT 1
@@ -1868,7 +1870,7 @@ async function getAssetCandles(pool, symbol, { interval = "1d", range = "30d" } 
         COALESCE(
           bb.frozen_price,
           tf.price
-            / ((1 + s.sign * a.half_spread) * (1 + s.sign * $4::numeric * tf.quantity / a.depth))
+            / ((1 + s.sign * hs.half_spread) * (1 + s.sign * $4::numeric * tf.quantity / a.depth))
             * exp(s.sign * $5::numeric * tf.quantity / a.depth)
         ) AS price,
         tf.price AS fill_price,
@@ -1878,6 +1880,13 @@ async function getAssetCandles(pool, symbol, { interval = "1d", range = "30d" } 
       FROM market.trade_fills tf
       JOIN asset a ON a.id = tf.asset_id
       CROSS JOIN LATERAL (SELECT CASE WHEN tf.side = 'buy' THEN 1 ELSE -1 END AS sign) s
+      CROSS JOIN LATERAL (
+        SELECT GREATEST(COALESCE(
+          (SELECT c.old_spread_bps FROM market.asset_spread_changes c WHERE c.asset_id = tf.asset_id AND c.changed_at > tf.ts ORDER BY c.changed_at ASC LIMIT 1),
+          a.spread_bps,
+          0
+        ), 0) / 20000.0 AS half_spread
+      ) hs
       LEFT JOIN LATERAL (
         SELECT b.frozen_price
         FROM market.asset_buybacks b

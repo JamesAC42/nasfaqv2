@@ -20,6 +20,7 @@ const adjustments = require("./marketAdjustments");
 const weekly = require("./weeklyEvaluation");
 const economy = require("./economy");
 const supply = require("./marketSupply");
+const marketPackage = require("./marketPackage");
 
 const HISTORY_DAYS = 90;
 const REPLAY_DAYS = { min: 1, max: 30, fallback: 14 };
@@ -95,6 +96,9 @@ function simSettings() {
     dividend: { rate_per_sigma: weekly.CONFIG.ratePerSigma, deadzone_sigma: weekly.CONFIG.deadzoneSigma, cap: weekly.CONFIG.cap },
     credit_conversion: { rate: economy.SETTINGS.weeklyConversionRate, minimum: economy.SETTINGS.weeklyConversionMinimum },
     reference_supply: supply.REFERENCE_SUPPLY,
+    // Whether the market package is on (marketPackage.js): the sim's "Today" then runs its fee rule,
+    // growth and holder dividend.
+    market_package: marketPackage.isOn(),
   };
 }
 

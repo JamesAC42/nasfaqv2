@@ -135,6 +135,15 @@ test("presets and guard rails", () => {
   const proposed = PRESETS.find((preset) => preset.key === "package")?.apply(today);
   assert.equal(proposed?.spreadBps, 150);
   assert.equal(proposed?.feeOnlyOnQuickSells, true);
+  // Today without the market package: every trade pays the fee, no growth, no holder dividend.
+  assert.equal(today.feeOnlyOnQuickSells, false);
+  assert.equal(today.driftPerDay, 0);
+  assert.equal(today.dividendTiltPerWeek, 0);
+  assert.equal(today.spreadBps, null);
+  // With it on, Today runs the package's rules on each stock's own spread.
+  const packaged = todayParams({ ...inputs.settings, market_package: true });
+  assert.deepEqual(packaged, { ...today, feeOnlyOnQuickSells: true, quickSellHours: 24, driftPerDay: 0.0005, dividendTiltPerWeek: 0.0025 });
+  assert.deepEqual(todayParams({ ...inputs.settings, market_package: false }), today);
   const wild = sanitizeParams({ ...today, days: 10_000, seeds: -3, feeRate: Number.NaN }, today);
   assert.equal(wild.days, 180);
   assert.equal(wild.seeds, 1);

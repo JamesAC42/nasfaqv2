@@ -1,0 +1,5 @@
+{
+  "state": "off",
+  "market": true,
+  "description": "The market package (services/marketPackage.js), all at once: a 1.5% spread on every stock (set at the next Open), buys free and the 1% fee only on shares sold within 24 hours of buying them, fair values growing 0.05% a day (from the next Open), and 0.25% of each stock's week-average price paid per share to every holder at the Saturday review. Market-wide, so off or on, never staff."
+}

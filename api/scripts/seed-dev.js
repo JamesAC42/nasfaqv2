@@ -26,6 +26,7 @@
 
 const { loadEnv } = require("../src/config");
 const { createPool } = require("../src/db");
+const { listingSpreadBps } = require("../src/services/marketPackage");
 
 // [symbol, name, unit, icon, colour, price, open, (old circulating supply: unused, players' holdings are the circulating supply now)]
 const TALENTS = [
@@ -156,10 +157,10 @@ async function seedTalents(pool) {
     const asset = await pool.query(
       `INSERT INTO market.market_assets (youtube_channel_id, symbol, display_name, status, max_supply, circulating_supply, treasury_supply,
          liquidity_depth, spread_bps, current_mid_price, current_bid_price, current_ask_price)
-       VALUES ($1, $2, $3, 'active', 10000, $4, $5, 1000, 400, $6, $6 * 0.98, $6 * 1.02)
+       VALUES ($1, $2, $3, 'active', 10000, $4, $5, 1000, $7::int, $6, $6 * (1 - $7::int / 20000.0), $6 * (1 + $7::int / 20000.0))
        ON CONFLICT (symbol) DO UPDATE SET display_name = EXCLUDED.display_name
        RETURNING id, current_mid_price`,
-      [channelId, symbol, name, 0, 10000, price]
+      [channelId, symbol, name, 0, 10000, price, listingSpreadBps()]
     );
     const snapshot = await pool.query(
       `INSERT INTO market.channel_daily_snapshots (youtube_channel_id, snapshot_date, subscriber_count, view_count)
