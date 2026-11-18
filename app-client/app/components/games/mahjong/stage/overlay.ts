@@ -33,7 +33,7 @@ export function anchorWorld(kind: AnchorKind, seat: number, narrow: number): Vec
     // On the rim in front of each opponent: the side players' on their own side of it, in front of their
     // hand and under the figure rather than over it (on a phone, near the far end, under their corner).
     if (seat === 2) return [0, TABLE.lip + 0.6, -TABLE.rim];
-    return [Math.sign(spot.p[0]) * (TABLE.rim + 1), TABLE.lip + 0.6, narrow > 0.5 ? -28 : spot.p[2] + 28];
+    return [Math.sign(spot.p[0]) * (TABLE.rim + 1), TABLE.lip + 0.6, narrow > 0.5 ? -28 : spot.p[2] + 18];
   }
   if (kind === "stamp") {
     // Yours pops on the felt in front of you, in the gap between your discards and the next player's,

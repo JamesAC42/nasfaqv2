@@ -59,19 +59,19 @@ export const HAND_LEAN = -0.42;
  * card a talent without half-body art gets. `size` is the nominal figure height, for pinning overlays
  * near the head. `turn` is how far the cutout turns from square to the lens toward the table's middle.
  *
- * Side players sit behind their own side of the table, about level with the middle of their hand (a
- * little toward the far end, so the lens takes their heads in), and far enough out that the whole
- * cutout stays outside the rim: the rim then passes in front of them on its slant, hiding the lower
- * body along one clean edge, as with someone seated behind a table's edge. Turning them partway toward
- * the middle keeps their inner shoulder from reaching back over the rim and flattens that slant. The
+ * Side players sit behind their own side of the table, level with the middle of their hand so they
+ * read as sitting behind it (the frame may cut off their outer side), and just outside the rim: the
+ * rim then passes in front of them on its slant, hiding the lower body along one clean edge, as with
+ * someone seated behind a table's edge. Turning them partway toward the middle keeps their inner shoulder from reaching back over the rim and flattens that slant. The
  * player across is further from the lens, so their head is set larger to come out about the same size.
  * A phone's frame ends at the side rims, so there they move up to the far corners of their own side,
  * still turned toward the middle, and the one across moves back.
  */
 export type PortraitSpot = { p: Vec3; ipd: number; shoulder: number; maxHeight: number; card: number; size: number; turn: number };
 
-/** How far toward the far end a side player sits on a landscape screen; their hand is centered on 0. */
-const SIDE_Z = -20;
+/** Where a side player sits on a landscape screen: out from the middle (the rim is at 44.5) and along their side (their hand is centered on 0). */
+const SIDE_X = 46;
+const SIDE_Z = -8;
 
 export function portraitSpot(seat: number, narrow: number): PortraitSpot {
   const lerp = (a: number, b: number) => a + (b - a) * narrow;
@@ -80,11 +80,11 @@ export function portraitSpot(seat: number, narrow: number): PortraitSpot {
   // they stay clear of the rim. The swing leads the rest of the move.
   const side = seat === 1 ? 1 : -1;
   const swing = Math.min(1, narrow * 1.35);
-  const angle = Math.atan2(SIDE_Z, 50) + (Math.atan2(-51, 38) - Math.atan2(SIDE_Z, 50)) * swing;
-  const radius = Math.hypot(50, SIDE_Z) + (Math.hypot(38, 51) - Math.hypot(50, SIDE_Z)) * swing;
+  const angle = Math.atan2(SIDE_Z, SIDE_X) + (Math.atan2(-51, 38) - Math.atan2(SIDE_Z, SIDE_X)) * swing;
+  const radius = Math.hypot(SIDE_X, SIDE_Z) + (Math.hypot(38, 51) - Math.hypot(SIDE_X, SIDE_Z)) * swing;
   let x = Math.cos(angle) * radius;
   let z = Math.sin(angle) * radius;
-  const out = 50 / Math.max(Math.abs(x), Math.abs(z));
+  const out = (SIDE_X + (50 - SIDE_X) * swing) / Math.max(Math.abs(x), Math.abs(z));
   if (out > 1) {
     x *= out;
     z *= out;
