@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useId, useMemo, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { getIconUrl } from "@/app/lib/normalizers";
 import { CLOTH, EMBLEM, SHADE_WAVELENGTH, STILL_PHASE, VIEW, clothPath, flagColors, flagTier, flagWidth, sway, tips, waveFrames } from "@/app/lib/oshiboard-flag.mjs";
 import type { FlagTier } from "@/app/lib/oshiboard-flag.mjs";
@@ -31,6 +31,20 @@ export function standingOf(membership: OshiboardMembership | undefined): Oshiboa
 /** Spoken and hover text: the place, the board's size and whose board it is. */
 export function standingLabel(standing: OshiboardStanding) {
   return `#${standing.rank.toLocaleString("en-US")} of ${standing.member_count.toLocaleString("en-US")} on ${standing.display_name}’s oshiboard`;
+}
+
+const REDUCE = "(prefers-reduced-motion: reduce)";
+function subscribeReduce(onChange: () => void) {
+  const query = window.matchMedia(REDUCE);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+/** Calm mode or the OS asking for less motion: either one holds the standard still. */
+function useStill() {
+  const { calm } = useMotion();
+  const reduce = useSyncExternalStore(subscribeReduce, () => window.matchMedia(REDUCE).matches, () => false);
+  return calm || reduce;
 }
 
 function useMarkFailed(url: string | null) {
@@ -224,7 +238,7 @@ function Standard({ standing, playerColor, animate, mini, width }: { standing: O
  * first place glows. Links to the board. No printed rank: the size and trim say it, the label speaks it.
  */
 export function OshiboardBanner({ standing, playerColor, className }: { standing: OshiboardStanding; playerColor: string | null | undefined; className?: string }) {
-  const { calm } = useMotion();
+  const still = useStill();
   const tier = flagTier(standing.rank);
   const width = flagWidth(standing.rank, 44, 88);
   const colors = flagColors(playerColor, standing.color);
@@ -244,7 +258,7 @@ export function OshiboardBanner({ standing, playerColor, className }: { standing
         </span>
       ) : null}
       <span className={styles.sway}>
-        <Standard standing={standing} playerColor={playerColor} animate={!calm} mini={false} width={Math.round((width * VIEW.width) / CLOTH.width)} />
+        <Standard standing={standing} playerColor={playerColor} animate={!still} mini={false} width={Math.round((width * VIEW.width) / CLOTH.width)} />
       </span>
     </Link>
   );
