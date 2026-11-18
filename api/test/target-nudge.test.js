@@ -3,6 +3,8 @@ const assert = require("node:assert/strict");
 const express = require("express");
 const { Pool } = require("pg");
 const targetNudge = require("../src/services/targetNudge");
+// These tests check rules the market package changes (services/marketPackage.js), so they run with it off; market-package.test.js covers it on.
+require("../src/features").override({ "market-package": "off" });
 
 // The fair value's server-side daily factor (services/targetNudge.js): deterministic, bounded, off
 // without a secret, never applied to days before its activation date, and never in a public payload.

@@ -27,11 +27,12 @@ const close = (actual, expected, message, tolerance = 1e-9) => assert.ok(Math.ab
 
 // ── The switch ────────────────────────────────────────────────────────────
 
-test("the package is off by default, and a market-wide flag is never staff", (t) => {
+test("the package is one market-wide switch, never staff", (t) => {
   const flag = features.list().find((row) => row.key === "market-package");
   assert.ok(flag, "there is a market-package flag file");
-  assert.equal(flag.state, "off");
+  assert.ok(["off", "on"].includes(flag.state));
   assert.equal(flag.market, true);
+  t.after(features.override({ "market-package": "off" }));
   assert.equal(marketPackage.isOn(), false);
   assert.throws(() => features.override({ "market-package": "staff" }), /never "staff"/);
 
@@ -114,6 +115,17 @@ test("fee: buys pay none while on; with it off every fill pays the whole rate", 
   assert.equal(offSell.feeCash, 12.34 * 7 * 0.01);
   // A sale of only old shares while on: free.
   assert.equal(marketPackage.fillFee({ side: "sell", price: 12, quantity: 7, feeRate: 0.01, lots: [], held: 7, on: true }).feeCash, 0);
+
+  // The auto-bailout's cheapest share (trading.oneShareCost) carries the buy fee only while it's off.
+  const trading = require("../src/services/trading");
+  const stock = { current_mid_price: 10, spread_bps: 150, liquidity_depth: 2000 };
+  const restoreOff = features.override({ "market-package": "off" });
+  const withFee = trading.oneShareCost(stock);
+  restoreOff();
+  const restoreOn = features.override({ "market-package": "on" });
+  const free = trading.oneShareCost(stock);
+  restoreOn();
+  close(withFee / free, 1.01, "one share costs the fee more with the package off", 1e-12);
 });
 
 // ── Growth ────────────────────────────────────────────────────────────────
@@ -386,6 +398,7 @@ test("settlement: the spread moves at the Open, growth compounds per day, replay
   const scheduler = require("../src/services/marketScheduler");
   const { REFERENCE_SUPPLY } = require("../src/services/marketSupply");
   const pool = await freshDatabase(t, "nasfaq_market_package_growth_test");
+  t.after(features.override({ "market-package": "off" }));
 
   const today = scheduler.getCurrentDateKey(new Date(), "America/New_York");
   const day = (i) => scheduler.shiftDateKey(today, i - 18); // day(18) is today

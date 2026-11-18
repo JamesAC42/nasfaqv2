@@ -10,6 +10,8 @@ const settlement = require("../src/services/settlement");
 const gamesWallet = require("../src/services/games/wallet");
 const trading = require("../src/services/trading");
 const weekly = require("../src/services/weeklyEvaluation");
+// These tests check rules the market package changes (services/marketPackage.js), so they run with it off; market-package.test.js covers it on.
+require("../src/features").override({ "market-package": "off" });
 
 // The Saturday review's auto-bailout (services/autoBailout.js). The pure parts run anywhere. The rest
 // needs CHAT_TEST_DATABASE_URL (a local server): one market is seeded once and cloned, and each clone
