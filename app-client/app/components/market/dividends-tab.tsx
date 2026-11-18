@@ -116,7 +116,7 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
           <div className={styles.kick}>
             {dateLong(review.eval_date).toUpperCase()} · <Term k="evaluation">WEEKLY EVALUATION</Term> · 00:00 ET
           </div>
-          <h2>{top ? `${top.display_name} pays ${rate(top.rate)} a share; ${review.charging_count} stocks charge fees` : "A flat week: no dividends"}</h2>
+          <h2>{top ? `${top.display_name} pays ${rate(top.rate)} a share; ${review.charging_count} stocks charge fees` : review.holder_dividend_rate ? "A flat week: only what every holder gets" : "A flat week: no dividends"}</h2>
           <p>
             <b>{money(review.dividends_total)}</b> paid out{review.credit_converted !== undefined ? <> as <Term k="credit">Credit</Term></> : null} to {review.holders_paid.toLocaleString("en-US")} players
             {holderRate ? (

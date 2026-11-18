@@ -36,7 +36,7 @@ export const GLOSSARY: ReadonlyArray<GlossaryEntry> = [
     href: "/market/ipo",
   },
   // 28 days is weeklyEvaluation.js ROOKIE_DAYS (IPO_ROOKIE_DAYS in how-to-play/content.ts).
-  { key: "rookie", term: "Rookie", def: "A talent listed by an IPO in the last 28 days (her first four Saturday reviews). She pays no dividend and charges no share fee, and her max shares never drop below what players hold." },
+  { key: "rookie", term: "Rookie", def: "A talent listed by an IPO in the last 28 days (her first four Saturday reviews). She isn't ranked: no dividend for a good week, no share fee for a bad one, just the 0.25% every holder gets. Her max shares never drop below what players hold." },
   { key: "net-worth", term: "Net worth", def: "Your cash (with what queued buys hold), your Credit and your shares at the current price. Money in an open pool isn't counted until it pays out. The leaderboard ranks this.", href: "/leaderboard" },
   { key: "momentum", term: "Momentum", def: "In the card duel, a card's bonus from its stock's move today, in whole percent, capped at ±8." },
   { key: "pity", term: "Pity", def: "The gacha's guarantee counter. Keep pulling and a high rarity is promised." },
