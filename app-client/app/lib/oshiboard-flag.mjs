@@ -165,6 +165,11 @@ export function sway(y, p) {
   return AMPLITUDE * slack(y) * Math.sin((2 * Math.PI * (y - CLOTH.top)) / WAVELENGTH - p);
 }
 
+/** How far the cloth leans at height y and phase p, in degrees (for skewing what's printed on it). */
+export function lean(y, p) {
+  return (Math.atan((sway(y + 1, p) - sway(y - 1, p)) / 2) * 180) / Math.PI;
+}
+
 /** A second, shorter ripple that pulls the edges apart and together a little (the cloth billowing). */
 const billow = (y, p) => 1.7 * slack(y) * Math.sin((2 * Math.PI * (y - CLOTH.top)) / (WAVELENGTH * 0.62) - 2 * p + 1.1);
 
@@ -216,7 +221,7 @@ export function waveFrames(count = 12) {
   for (let i = 0; i <= count; i += 1) {
     const p = (2 * Math.PI * (i % count)) / count;
     const tip = tips(p);
-    frames.push({ p, d: clothPath(p), emblem: sway(EMBLEM.cy, p), left: tip.left, right: tip.right });
+    frames.push({ p, d: clothPath(p), emblem: sway(EMBLEM.cy, p), lean: lean(EMBLEM.cy, p), left: tip.left, right: tip.right });
   }
   return frames;
 }
