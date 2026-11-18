@@ -40,12 +40,16 @@ const SETTINGS = Object.freeze({
   },
 
   /**
-   * Talents with 3D table art (the client lists the same ones in stage/art.ts). Bots pick from these
-   * first, so a solo table shows drawn figures rather than fallback cards while the set is small.
-   * MAHJONG_BOT_TALENTS, comma-separated tickers; empty means no preference.
+   * Talents with 3D table art: the launch set of 36 (the most held, FuwaMoco aside), whose half-body
+   * portraits are the art manifest's `SYM/half/<mood>` entries. Bots pick from these first, so a table
+   * shows drawn figures rather than fallback cards. MAHJONG_BOT_TALENTS, comma-separated tickers; empty
+   * means no preference.
    */
   botTalents: Object.freeze(
-    String(process.env.MAHJONG_BOT_TALENTS ?? "PEK,GUR,SUI")
+    String(
+      process.env.MAHJONG_BOT_TALENTS ??
+        "HAT,SUI,MMR,KRN,KND,KYR,MAR,RYS,LAM,BLZ,FLR,INA,BIJ,PNT,KRE,MIK,AME,MRN,AYA,PEK,BLD,MUM,CLI,KRA,GUR,AZK,TOW,NEN,BOT,ZET,VIV,RBC,LUN,AQU,RVN,COC",
+    )
       .split(",")
       .map((part) => part.trim().toUpperCase())
       .filter(Boolean),
