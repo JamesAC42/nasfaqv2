@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SECTIONS, type SectionId } from "@/app/components/how-to-play/content";
+import { type SectionId } from "@/app/components/how-to-play/content";
+import { useVisibleSections } from "@/app/components/how-to-play/visible-sections";
 import styles from "@/app/components/how-to-play/how-to-play.module.scss";
 
 /**
@@ -11,15 +12,16 @@ import styles from "@/app/components/how-to-play/how-to-play.module.scss";
 export function SectionNav() {
   const [active, setActive] = useState<SectionId>("market");
   const scroller = useRef<HTMLDivElement | null>(null);
+  const sections = useVisibleSections();
 
   useEffect(() => {
-    const nodes = SECTIONS.map((section) => document.getElementById(section.id)).filter((node): node is HTMLElement => Boolean(node));
+    const nodes = sections.map((section) => document.getElementById(section.id)).filter((node): node is HTMLElement => Boolean(node));
     if (!nodes.length || typeof IntersectionObserver === "undefined") return;
     const visible = new Map<string, boolean>();
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) visible.set(entry.target.id, entry.isIntersecting);
-        const first = SECTIONS.find((section) => visible.get(section.id));
+        const first = sections.find((section) => visible.get(section.id));
         if (first) setActive(first.id);
       },
       // A thin band a third of the way down the viewport: whichever section crosses it is "current".
@@ -27,7 +29,7 @@ export function SectionNav() {
     );
     nodes.forEach((node) => observer.observe(node));
     return () => observer.disconnect();
-  }, []);
+  }, [sections]);
 
   // Keep the active chip in view on the phone scroller without moving the page.
   useEffect(() => {
@@ -42,7 +44,7 @@ export function SectionNav() {
     <nav className={styles.sectionNav} aria-label="Guide sections">
       <span className={styles.navLabel}>On this page</span>
       <div className={styles.navList} ref={scroller}>
-        {SECTIONS.map((section, index) => (
+        {sections.map((section, index) => (
           <a
             key={section.id}
             href={`#${section.id}`}

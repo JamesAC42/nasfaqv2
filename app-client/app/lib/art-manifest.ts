@@ -21,6 +21,16 @@ export type ArtAnchors = {
   feet_y?: number;
   /** Point of interest for cropping, as [x, y] fractions. */
   focus?: [number, number];
+  /** Talent cutouts drawn into a composite (the mahjong slots): face center and the line the table edge covers, as fractions of height. */
+  face_y?: number;
+  cut_y?: number;
+  /** Width of the opaque figure as a fraction of the image width. */
+  span?: number;
+  /**
+   * Distance between the pupils as a fraction of the image width. The 3D mahjong table's half-body
+   * portraits (`SYM/half/<mood>`) carry it with `eye_y`, to size every talent to one head size.
+   */
+  ipd?: number;
 };
 
 export type ArtImage = {
@@ -85,6 +95,16 @@ export function resolveArtUrl(path: string | null | undefined) {
   // On a CDN: a full URL. Served from the site: a root-relative path, the same on server and client.
   if (/^https?:\/\//.test(ART_MANIFEST_URL)) return new URL(path, ART_MANIFEST_URL).href;
   return new URL(path, `http://localhost${ART_MANIFEST_URL.startsWith("/") ? "" : "/"}${ART_MANIFEST_URL}`).pathname;
+}
+
+/**
+ * The same picture for a WebGL texture: the CDN sends no CORS headers, so CDN art is read through
+ * the site (app/art-image). Art served from public/ is same-origin already.
+ */
+export function textureArtUrl(path: string | null | undefined) {
+  if (!path) return null;
+  if (!/^https?:\/\//.test(ART_MANIFEST_URL) || /^https?:\/\//.test(path)) return resolveArtUrl(path);
+  return `/art-image/${path.replace(/^\/+/, "")}`;
 }
 
 /** Pick the smallest chibi export that is at least `px` wide (falls back to the largest). */

@@ -71,6 +71,7 @@ const PLURALS = Object.freeze({
   proposal_approved: "picked articles",
   exchange: "exchange updates",
   wishlist: "wishlist alerts",
+  mahjong: "mahjong updates",
 });
 
 const preferenceColumn = (group) => `push_${group}`;

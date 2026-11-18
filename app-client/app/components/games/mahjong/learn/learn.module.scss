@@ -1,0 +1,952 @@
+@use "../../../../styles/mixins" as *;
+
+// Shared by every page under /games/mahjong/learn: the sub-nav, prose, callouts, the pictured
+// examples, the page intro with its art, and the in-page nav. Hairlines, not cards; numbers mono;
+// blue is the chassis.
+//
+// Type scale (one step ≈ 1.2): label 0.656 · small 0.8125 · body 1 · lead 1.125 · h3 1.25 ·
+// h2 1.6 · page title (the games frame). Prose sits at about 68 characters a line, on a 1.65 line
+// height, with space between blocks in steps of 0.5rem.
+
+// Motion only when the visitor hasn't asked the OS or the site (html[data-calm]) for calm.
+@mixin moving {
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html:not([data-calm="true"])) & {
+      @content;
+    }
+  }
+}
+
+.page {
+  --measure: 68ch;
+  --sticky-top: calc(var(--rail-height) + var(--tape-height) + env(safe-area-inset-top, 0px));
+  min-width: 0;
+  padding-bottom: 2.5rem;
+}
+
+// ── Sub-nav ─────────────────────────────────────────────────────────────────
+.subnav {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--rule);
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  a {
+    @include label;
+    flex: 0 0 auto;
+    padding: 0.7rem 0.85rem 0.6rem;
+    border-bottom: 2px solid transparent;
+    color: var(--mid);
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:first-child {
+      padding-left: 0;
+    }
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &[aria-current="page"] {
+      color: var(--text);
+      border-bottom-color: var(--blue);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+// ── Prose ───────────────────────────────────────────────────────────────────
+.prose {
+  min-width: 0;
+  max-width: var(--measure, 68ch);
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--mid);
+
+  p {
+    margin: 0 0 1rem;
+  }
+
+  b,
+  strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  a {
+    color: var(--blue);
+  }
+
+  ul,
+  ol {
+    margin: 0 0 1rem;
+    padding-left: 1.25rem;
+
+    li {
+      margin: 0 0 0.6rem;
+      padding-left: 0.2rem;
+    }
+
+    li::marker {
+      color: var(--blue);
+    }
+  }
+
+  h3 {
+    @include display(1.25rem);
+    margin: 1.75rem 0 0.6rem;
+    color: var(--text);
+  }
+
+  code,
+  .num {
+    @include num;
+    color: var(--text);
+  }
+}
+
+.lead {
+  max-width: var(--measure, 68ch);
+  margin: 0 0 1rem;
+  font-size: 1.125rem;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.section {
+  min-width: 0;
+  padding: 2rem 0;
+  border-bottom: 1px solid var(--rule);
+  // The phone header hides on the way down and comes back on the way up, so never less than its height.
+  scroll-margin-top: max(calc(var(--sticky-top) + 3.5rem), calc(4.875rem + 3.5rem + env(safe-area-inset-top, 0px)));
+
+  > h2 {
+    @include display(1.6rem);
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin: 0 0 1rem;
+    color: var(--text);
+  }
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.sectionNum {
+  @include num;
+  font-size: 0.8125rem;
+  color: var(--blue);
+}
+
+.kicker {
+  @include label;
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--blue);
+}
+
+// ── Tables of facts ─────────────────────────────────────────────────────────
+.facts {
+  width: 100%;
+  max-width: 52rem;
+  margin: 0.5rem 0 1rem;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+
+  th,
+  td {
+    padding: 0.55rem 0.8rem 0.55rem 0;
+    border-bottom: 1px solid var(--rule);
+    text-align: left;
+    vertical-align: top;
+    color: var(--mid);
+  }
+
+  th {
+    @include label;
+    padding-top: 0.6rem;
+    white-space: nowrap;
+  }
+
+  td:first-child,
+  th:first-child {
+    color: var(--text);
+  }
+
+  .n {
+    @include num;
+    text-align: right;
+    white-space: nowrap;
+    color: var(--text);
+  }
+
+  tbody tr:hover td {
+    background: var(--blue-wash);
+  }
+}
+
+.scroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+// ── Callouts ────────────────────────────────────────────────────────────────
+// "Remember" (blue), "Watch out" (warn), "Try this" (neutral). A tag, then a line or two.
+.callout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.15rem 0.7rem;
+  align-items: start;
+  max-width: var(--measure, 68ch);
+  margin: 0.5rem 0 1.25rem;
+  padding: 0.75rem 1rem 0.8rem 0.85rem;
+  border: 1px solid var(--blue-line);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--blue-wash);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--mid);
+
+  > svg {
+    margin-top: 0.2rem;
+    color: var(--blue);
+    font-size: 1rem;
+  }
+
+  b,
+  strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  p {
+    margin: 0;
+  }
+
+  p + p {
+    margin-top: 0.4rem;
+  }
+
+  &[data-tone="watch"] {
+    border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+    background: var(--warn-wash);
+
+    > svg,
+    .calloutTag {
+      color: var(--warn);
+    }
+  }
+
+  &[data-tone="try"] {
+    border-color: var(--rule-2);
+    background: var(--ink-2);
+
+    > svg,
+    .calloutTag {
+      color: var(--text);
+    }
+  }
+}
+
+.calloutTag {
+  @include label;
+  display: block;
+  margin-bottom: 0.15rem;
+  color: var(--blue);
+  font-weight: 700;
+}
+
+// Older plain note (left rule only).
+.note {
+  max-width: var(--measure, 68ch);
+  margin: 0.5rem 0 1rem;
+  padding: 0.6rem 0 0.6rem 0.9rem;
+  border-left: 2px solid var(--blue-line);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--mid);
+
+  b {
+    color: var(--text);
+  }
+}
+
+// ── Numbered steps ──────────────────────────────────────────────────────────
+.steps {
+  display: grid;
+  gap: 0.7rem;
+  max-width: var(--measure, 68ch);
+  margin: 0.5rem 0 1.25rem;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+
+  > li {
+    position: relative;
+    min-height: 1.9rem;
+    padding-left: 2.6rem;
+    counter-increment: step;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--mid);
+
+    &::before {
+      @include num;
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0;
+      display: grid;
+      place-items: center;
+      width: 1.8rem;
+      height: 1.8rem;
+      border: 1px solid var(--blue-line);
+      border-radius: 50%;
+      background: var(--blue-wash);
+      color: var(--blue);
+      font-size: 0.8125rem;
+      font-weight: 700;
+    }
+
+    b {
+      color: var(--text);
+      font-weight: 600;
+    }
+  }
+}
+
+// ── Pictures ────────────────────────────────────────────────────────────────
+.picture {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  align-content: start;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0.5rem 0 1.25rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--ink-2);
+  overflow-x: auto;
+}
+
+.caption {
+  margin: 0;
+  max-width: 60ch;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--mid);
+}
+
+.pictureLabel {
+  @include label;
+  color: var(--text);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.8rem;
+  min-width: 0;
+  max-width: 60rem;
+
+  > .picture {
+    margin: 0;
+  }
+
+  & + * {
+    margin-top: 1.25rem;
+  }
+}
+
+// A row of tiles that can't be thrown (crossed out).
+.crossed {
+  position: relative;
+  display: inline-flex;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 46% -3px auto;
+    height: 2px;
+    background: var(--down);
+    transform: rotate(-24deg);
+    border-radius: 1px;
+  }
+}
+
+.tileLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+
+  > small {
+    @include label;
+  }
+}
+
+.arrow {
+  color: var(--dim);
+  font-size: 0.9rem;
+}
+
+// ── Buttons and links ───────────────────────────────────────────────────────
+.primary {
+  @include button-primary;
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.1rem;
+  border: 1px solid var(--blue);
+  border-radius: var(--radius-sm);
+  background: var(--blue);
+  color: var(--blue-ink);
+  text-decoration: none;
+  cursor: pointer;
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.secondary {
+  @include button-secondary;
+  @include label;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.1rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.error {
+  margin: 0.4rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--down);
+}
+
+// ── Page intro: "In short" beside the page's art ────────────────────────────
+.intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
+  gap: 1.5rem;
+  align-items: stretch;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--rule);
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    padding: 1rem 0 1.25rem;
+  }
+}
+
+.introArt {
+  position: relative;
+  min-height: 13rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--ink-2);
+
+  @include phone {
+    order: -1;
+    min-height: 0;
+    aspect-ratio: 2.45 / 1;
+  }
+}
+
+.inShort {
+  display: grid;
+  align-content: center;
+  gap: 0.6rem;
+  min-width: 0;
+
+  > span {
+    @include label;
+    color: var(--blue);
+  }
+
+  ul {
+    display: grid;
+    gap: 0.55rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    position: relative;
+    max-width: 60ch;
+    padding-left: 1.4rem;
+    font-size: 1rem;
+    line-height: 1.55;
+    color: var(--mid);
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: 0.1rem;
+      top: 0.55em;
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 2px;
+      background: var(--blue);
+      transform: rotate(45deg);
+    }
+
+    b {
+      color: var(--text);
+      font-weight: 600;
+    }
+  }
+}
+
+// ── With an in-page nav: a sticky rail on wide screens, a sticky strip on narrow ──
+.withToc {
+  display: grid;
+  grid-template-columns: 12.5rem minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: start;
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+.toc {
+  position: sticky;
+  top: calc(var(--sticky-top) + 1rem);
+  z-index: 5;
+  min-width: 0;
+  padding-top: 1.75rem;
+
+  > span {
+    @include label;
+    display: block;
+    margin-bottom: 0.6rem;
+  }
+
+  ol {
+    display: grid;
+    gap: 0.1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-left: 1px solid var(--rule);
+  }
+
+  a {
+    display: block;
+    margin-left: -1px;
+    padding: 0.35rem 0 0.35rem 0.85rem;
+    border-left: 2px solid transparent;
+    font-size: 0.875rem;
+    line-height: 1.35;
+    color: var(--mid);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &[aria-current="true"] {
+      border-left-color: var(--blue);
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  @include tablet-down {
+    top: var(--sticky-top);
+    margin: 0 calc(var(--gutter, 1rem) * -1);
+    padding: 0 var(--gutter, 1rem);
+    border-bottom: 1px solid var(--rule);
+    background: color-mix(in srgb, var(--ink) 92%, transparent);
+    backdrop-filter: blur(6px);
+
+    > span {
+      display: none;
+    }
+
+    ol {
+      display: flex;
+      gap: 0.25rem;
+      overflow-x: auto;
+      border-left: 0;
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+    }
+
+    li {
+      flex: none;
+    }
+
+    a {
+      @include label;
+      margin: 0;
+      padding: 0.75rem 0.6rem 0.65rem;
+      border-left: 0;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+
+      &[aria-current="true"] {
+        border-bottom-color: var(--blue);
+        color: var(--text);
+        font-weight: 700;
+      }
+    }
+  }
+}
+
+// ── Hub ─────────────────────────────────────────────────────────────────────
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 34rem);
+  gap: 1.75rem;
+  align-items: stretch;
+  padding: 1.5rem 0 1.75rem;
+  border-bottom: 1px solid var(--rule);
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.1rem;
+  }
+}
+
+.heroArt {
+  position: relative;
+  min-height: 16rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--ink-2);
+
+  @include tablet-down {
+    order: -1;
+    min-height: 0;
+    aspect-ratio: 2.3 / 1;
+  }
+}
+
+.heroText {
+  display: grid;
+  align-content: center;
+  gap: 0.9rem;
+  min-width: 0;
+
+  h2 {
+    @include display(1.6rem);
+    margin: 0;
+    line-height: 1.2;
+    color: var(--text);
+  }
+
+  p {
+    max-width: 60ch;
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--mid);
+  }
+}
+
+.pips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: block;
+  }
+
+  a {
+    @include num;
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    color: var(--mid);
+    font-size: 0.75rem;
+    text-decoration: none;
+
+    &:hover {
+      border-color: var(--text);
+      color: var(--text);
+    }
+
+    &[data-done="true"] {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: var(--blue-ink);
+    }
+
+    &[data-next="true"] {
+      border-color: var(--blue);
+      color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-wash);
+
+      @include moving {
+        animation: nextPulse 2.4s ease-in-out infinite;
+      }
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+}
+
+@keyframes nextPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px var(--blue-wash);
+  }
+  50% {
+    box-shadow: 0 0 0 6px var(--blue-wash);
+  }
+}
+
+.meter {
+  position: relative;
+  display: block;
+  height: 6px;
+  max-width: 26rem;
+  border-radius: 3px;
+  background: var(--ink-3);
+  overflow: hidden;
+
+  > i {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 3px;
+    background: var(--blue);
+    transition: width var(--dur-med, 240ms) var(--ease-out, ease-out);
+  }
+}
+
+.path {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 1.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--rule);
+
+  @include tablet-down {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  > li {
+    display: grid;
+    align-content: start;
+    gap: 0.7rem;
+    min-width: 0;
+    padding: 1.1rem 1.1rem 1.2rem;
+    background: var(--ink);
+  }
+
+  h2 {
+    @include display(1.3rem);
+    margin: 0;
+    color: var(--text);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--mid);
+  }
+}
+
+.stepHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.step {
+  @include num;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--blue);
+}
+
+.progressLine {
+  @include label;
+  color: var(--dim);
+}
+
+.refs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 0.75rem;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    min-width: 0;
+  }
+
+  a {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.25rem 0.9rem;
+    height: 100%;
+    padding: 0.95rem 1rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    text-decoration: none;
+    transition: border-color var(--dur-fast, 120ms) ease;
+
+    &:hover {
+      border-color: var(--blue-line);
+    }
+
+    &:hover b {
+      color: var(--blue);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+
+    @include moving {
+      transition:
+        border-color var(--dur-fast, 120ms) ease,
+        transform var(--dur-fast, 120ms) ease;
+
+      &:hover {
+        transform: translateY(-2px);
+      }
+    }
+  }
+
+  b {
+    @include display(1.15rem);
+    font-weight: 400;
+    align-self: center;
+  }
+
+  span:not(.refTile) {
+    grid-column: 1 / -1;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--mid);
+  }
+}
+
+.refTile {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.headRow {
+  @include section-heading;
+  margin: 2.25rem 0 0;
+}
+
+.subnavBack {
+  @include label;
+  color: var(--mid);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--blue);
+  }
+}
+
+// ── Flip-to-reveal ──────────────────────────────────────────────────────────
+.reveal {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.revealButton {
+  @include label;
+  justify-self: start;
+  padding: 0.5rem 0.85rem;
+  border: 1px dashed var(--rule-2);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.revealed {
+  @include moving {
+    animation: flipIn var(--dur-med, 240ms) var(--ease-out, ease-out) both;
+  }
+}
+
+@keyframes flipIn {
+  from {
+    opacity: 0;
+    transform: perspective(600px) rotateX(-35deg);
+    transform-origin: top;
+  }
+}

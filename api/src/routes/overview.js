@@ -134,6 +134,12 @@ function oshiWireFor(req, res) {
   return features.isEnabled(OSHI_WIRE, req.ctx.user);
 }
 
+/** The same for mahjong's headlines (features/mahjong.json): their copies are keyed ":mj". */
+function mahjongWireFor(req, res) {
+  if (features.staffOnly("mahjong")) features.markPrivate(res);
+  return features.isEnabled("mahjong", req.ctx.user);
+}
+
 // The Wire: automatic headlines from streams, milestones, the market, the games and oshi moves.
 router.get("/wire", async (req, res, next) => {
   try {
@@ -141,14 +147,15 @@ router.get("/wire", async (req, res, next) => {
     const hours = Math.min(24 * 30, Math.max(1, Number.parseInt(req.query.hours, 10) || 168));
     const order = req.query.order === "time" ? "time" : "rank";
     const withOshi = oshiWireFor(req, res);
+    const withMahjong = mahjongWireFor(req, res);
     const group = wire.groupFor(String(req.query.group || ""), { withOshi });
     const symbol = /^[A-Za-z0-9]{1,12}$/.test(String(req.query.symbol || "")) ? String(req.query.symbol).toUpperCase() : null;
     const beforeMs = req.query.before ? Date.parse(String(req.query.before)) : Number.NaN;
     const before = Number.isFinite(beforeMs) ? new Date(beforeMs).toISOString() : null;
-    await sendCachedJson(req, res, `overview:wire:${limit}:${hours}:${order}:${group || "*"}:${symbol || "*"}:${before || "-"}:${withOshi ? "oshi" : "-"}`, {
+    await sendCachedJson(req, res, `overview:wire:${limit}:${hours}:${order}:${group || "*"}:${symbol || "*"}:${before || "-"}:${withOshi ? "oshi" : "-"}:${withMahjong ? "mj" : "-"}`, {
       ttlSeconds: 30,
       memoMs: 5000,
-      load: async () => ({ items: await wire.listWire(req.ctx.pool, { limit, hours, order, group, symbol, before, withOshi }) }),
+      load: async () => ({ items: await wire.listWire(req.ctx.pool, { limit, hours, order, group, symbol, before, withOshi, withMahjong }) }),
     });
   } catch (e) {
     next(e);
@@ -161,10 +168,11 @@ router.get("/wire/counts", async (req, res, next) => {
     const hours = Math.min(24 * 30, Math.max(1, Number.parseInt(req.query.hours, 10) || 168));
     const symbol = /^[A-Za-z0-9]{1,12}$/.test(String(req.query.symbol || "")) ? String(req.query.symbol).toUpperCase() : null;
     const withOshi = oshiWireFor(req, res);
-    await sendCachedJson(req, res, `overview:wire-counts:${hours}:${symbol || "*"}:${withOshi ? "oshi" : "-"}`, {
+    const withMahjong = mahjongWireFor(req, res);
+    await sendCachedJson(req, res, `overview:wire-counts:${hours}:${symbol || "*"}:${withOshi ? "oshi" : "-"}:${withMahjong ? "mj" : "-"}`, {
       ttlSeconds: 30,
       memoMs: 5000,
-      load: () => wire.countWire(req.ctx.pool, { hours, symbol, withOshi }),
+      load: () => wire.countWire(req.ctx.pool, { hours, symbol, withOshi, withMahjong }),
     });
   } catch (e) {
     next(e);

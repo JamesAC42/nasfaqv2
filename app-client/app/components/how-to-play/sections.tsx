@@ -4,7 +4,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { StockChip } from "@/app/components/common/stock-chip";
-import { GAMES, IPO_ROOKIE_DAYS, SECTIONS, SHARES_PER_WINDOW, type SectionId } from "@/app/components/how-to-play/content";
+import { GAMES, IPO_ROOKIE_DAYS, SHARES_PER_WINDOW, type SectionId } from "@/app/components/how-to-play/content";
+import { useVisibleSections } from "@/app/components/how-to-play/visible-sections";
 import { ChibiTag, PoolDemo, PullDiagram, RarityFan, TalentStrip, TicketDemo, TickTimeline, useBusiestTalents } from "@/app/components/how-to-play/demos";
 import { TickKoma } from "@/app/components/how-to-play/tick-koma";
 import { BuybackDemo } from "@/app/components/how-to-play/buyback-demo";
@@ -14,6 +15,8 @@ import { GamesDiagram, MarketDiagram, PredictionsDiagram, TradingDiagram } from 
 import styles from "@/app/components/how-to-play/how-to-play.module.scss";
 import { Term } from "@/app/components/common/tip";
 import { useFeature } from "@/app/lib/features";
+import { useMahjongRules } from "@/app/components/games/mahjong/learn/use-rules";
+import { fmtInteger } from "@/app/lib/format";
 
 // ── Building blocks ─────────────────────────────────────────────────────────
 
@@ -31,13 +34,14 @@ type SectionProps = {
 };
 
 export function Section({ id, title, lede, art, talentArt, diagram, links, children }: SectionProps) {
-  const index = SECTIONS.findIndex((section) => section.id === id);
+  const sections = useVisibleSections();
+  const index = sections.findIndex((section) => section.id === id);
   return (
     <section id={id} className={styles.section} aria-labelledby={`${id}-title`}>
       <div className={styles.sectionHead} data-art={art ? "true" : undefined}>
         <div className={styles.sectionCopy}>
           <span className={styles.sectionKicker}>
-            {String(index + 1).padStart(2, "0")} · {SECTIONS[index]?.label}
+            {String(index + 1).padStart(2, "0")} · {sections[index]?.label}
           </span>
           <h2 id={`${id}-title`}>{title}</h2>
           <div className={styles.sectionLede}>{lede}</div>
@@ -495,6 +499,152 @@ export function GamesSection() {
           </Link>
         </li>
       </ul>
+    </Section>
+  );
+}
+
+// ── Mahjong (behind the "mahjong" flag) ─────────────────────────────────────
+
+export function MahjongSection() {
+  const enabled = useFeature("mahjong");
+  const { data } = useMahjongRules();
+  if (!enabled) return null;
+  const rules = data?.rules;
+  const percent = rules ? `${Number((rules.weekly_rate * 100).toFixed(2))}%` : null;
+  const trial = rules?.trial === true;
+  const biggest = rules?.stakes.filter((tier) => tier.chips?.length).at(-1)?.chips;
+  const example = biggest ? `the biggest table pays ${biggest.map((value) => `${value > 0 ? "+" : "−"}${fmtInteger(Math.abs(value))}`).join(", ")} chips for first to fourth` : "each place pays a fixed number of chips, and the lower places pay negative chips";
+  const trialItems = [
+    {
+      k: "ways to play",
+      title: "Practice, friends, quick match, chip tables",
+      body: "Practice against bots is free and unrated: one quick hand or a full game, with or without a clock. Quick match is rated and free, with bots filling empty seats after a short wait. Friend rooms are a link. Chip tables are free to sit at.",
+    },
+    {
+      k: "chips",
+      title: "Chip tables",
+      body: (
+        <>
+          Each finished game at a chip table records <Term k="mj-chips">chips</Term> by place: {example}. Chips are a record, not a balance: there is nothing to buy, spend or send, and they are worth nothing outside the beta. Bots take empty seats after a short wait and earn no chips.
+        </>
+      ),
+    },
+    {
+      k: "no money",
+      title: "No Cash or Credit",
+      body: (
+        <>
+          Mahjong is in <Term k="mj-beta">beta</Term>. No Cash or Credit is ever taken or paid at any table, and tournaments have no entry fee and no prize pool.
+        </>
+      ),
+    },
+    {
+      k: "rating",
+      title: "Ladder and seasons",
+      body: "Rated games move your rating by how you placed against each of the other three. Ranks are names for rating bands. Seasons are calendar months, and a new season starts everyone halfway back to 1,500. Bots’ ratings never move.",
+    },
+    {
+      k: "leaderboards",
+      title: "Chip leaderboards",
+      body: "The ladder page ranks net chips for the week, which starts Saturday at midnight New York time, and for all time. The rated ladder sits beside them.",
+    },
+    {
+      k: "badges",
+      title: "Badges",
+      body: "Six first-time badges mark a first game, win, riichi win, self-draw, mangan and table win. They show in the lobby and on your record.",
+    },
+    {
+      k: "watching",
+      title: "Watching and picks",
+      body: "Anyone can watch a live table with no delay, and spectators are never sent a hidden tile. Verified, signed-in viewers can send reactions, cheer a seat and pick who wins before the second hand. Picks are free and count on a leaderboard.",
+    },
+    {
+      k: "feedback",
+      title: "Feedback",
+      body: "The lobby’s Send feedback button sends a note straight to the people building mahjong, and the Discord is open for everything else.",
+    },
+    {
+      k: "learn",
+      title: "Where to learn",
+      body: (
+        <>
+          The <Link href="/games/mahjong/learn/tutorial">walkthrough</Link> goes from the tiles to a first win, with two guided hands. The <Link href="/games/mahjong/learn/easy-patterns">five easy patterns</Link> are the yaku to aim for first. After that come the{" "}
+          <Link href="/games/mahjong/learn/rules">rules</Link>, the <Link href="/games/mahjong/learn/yaku">yaku</Link>, the <Link href="/games/mahjong/learn/glossary">glossary</Link> and <Link href="/games/mahjong/learn/tips">tips</Link>.
+        </>
+      ),
+    },
+  ];
+  return (
+    <Section
+      id="mahjong"
+      title="Mahjong, four at a table"
+      lede={
+        <>
+          <p>
+            Riichi mahjong, the Japanese kind, on NASFAQ’s own tiles: circles are coins, bamboo are candlesticks, characters are the number over 萬. You build a hand of four sets and a pair, say{" "}
+            <Term k="mj-riichi">riichi</Term> when you’re one tile away, and win by drawing the last tile yourself or taking a discard. The server deals, checks every move and keeps the wall sealed: its hash is published
+            before the game, and the replay lets you check it afterwards.
+          </p>
+          {trial ? (
+            <p>
+              Mahjong is in <Term k="mj-beta">beta</Term>: you play with <Term k="mj-chips">chips</Term>, and no Cash or Credit is ever taken or paid. Points at the table are never worth money.
+            </p>
+          ) : (
+            <p>
+              It spends <Term k="credit">Credit</Term> and never your cash, and the only money in it is entry fees and fixed prizes. Points at the table are never worth money.
+            </p>
+          )}
+        </>
+      }
+      links={[
+        { href: "/games/mahjong", label: "Open the tables" },
+        { href: "/games/mahjong/learn", label: "Learn mahjong" },
+        { href: "/games/mahjong/learn/rules", label: "The rules" },
+        ...(trial ? [{ href: "/games/mahjong/learn/easy-patterns", label: "Five easy patterns" }] : []),
+      ]}
+    >
+      <Rules
+        cols={3}
+        items={trial ? trialItems : [
+          {
+            k: "ways to play",
+            title: "Practice, friends, ranked, stakes",
+            body: "Practice against bots is free, untimed and unrated. Quick match is rated and free, with bots filling empty seats after a short wait. Friend rooms are a link. Stakes tables and tournaments have an entry fee and no bots.",
+          },
+          {
+            k: "Credit only",
+            title: "What it can cost",
+            body: rules
+              ? `Stakes tables pay by finishing place. Your net result from mahjong over a week stays within ${percent} of your Credit or $${fmtInteger(rules.weekly_minimum)}, whichever is more, and you can start ${rules.paid_games_per_day} paid games a day. It’s a budget of its own, separate from blackjack’s.`
+              : "Stakes tables pay by finishing place. Your net result from mahjong over a week stays within a limit tied to your Credit, and there’s a cap on paid games a day. It’s a budget of its own, separate from blackjack’s.",
+          },
+          {
+            k: "rating",
+            title: "Ladder and seasons",
+            body: "Rated games move your rating by how you placed against each of the other three. Ranks are names for rating bands. Seasons are calendar months, and a new season starts everyone halfway back to 1,500. Bots’ ratings never move.",
+          },
+          {
+            k: "no bots, no money",
+            title: "Paid means four people",
+            body: "A table that started with a bot never pays anyone. A tournament that needs a bot is free and refunds every fee. A verified email is needed to sit at a paid table, and two accounts that have shared a network address can’t sit at one together.",
+          },
+          {
+            k: "watching",
+            title: "Watching and picks",
+            body: "Anyone can watch a live table with no delay, and spectators are never sent a hidden tile. Verified, signed-in viewers can send reactions, cheer a seat and pick who wins before the second hand. Picks are free, count on a leaderboard and never pay.",
+          },
+          {
+            k: "learn",
+            title: "Where to learn",
+            body: (
+              <>
+                The <Link href="/games/mahjong/learn/tutorial">walkthrough</Link> goes from the tiles to a first win, with two guided hands. After that come the <Link href="/games/mahjong/learn/rules">rules</Link>, the{" "}
+                <Link href="/games/mahjong/learn/yaku">yaku</Link>, the <Link href="/games/mahjong/learn/glossary">glossary</Link> and <Link href="/games/mahjong/learn/tips">tips</Link>.
+              </>
+            ),
+          },
+        ]}
+      />
     </Section>
   );
 }

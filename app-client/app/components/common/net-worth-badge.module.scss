@@ -1,0 +1,32 @@
+@use "../../styles/mixins" as *;
+
+.badge {
+  @include num;
+  display: inline-flex;
+  gap: 0.3rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.62rem;
+  line-height: 1.35;
+  color: var(--dim);
+}
+
+.amount {
+  color: var(--mid);
+}
+
+.ten {
+  border-color: var(--blue-line);
+  color: var(--blue);
+}
+
+.top {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: var(--blue-ink);
+
+  .amount {
+    color: inherit;
+  }
+}

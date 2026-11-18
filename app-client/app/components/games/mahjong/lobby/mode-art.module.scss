@@ -1,0 +1,506 @@
+@use "../../../../styles/mixins" as *;
+
+// The drawn lobby art. Each piece fills its slot and centers a fixed-size composition, scaled by
+// --art-scale (the lobby sets it per breakpoint). Colors are theme tokens only, so seasons reach them.
+
+.art {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+
+  > * {
+    transform: scale(var(--art-scale, 1));
+  }
+}
+
+@keyframes sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes fill {
+  from {
+    transform: scaleX(0.35);
+  }
+  to {
+    transform: scaleX(0.82);
+  }
+}
+
+@keyframes glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1.5px var(--blue), 0 0 10px 1px var(--blue-line);
+  }
+  50% {
+    box-shadow: 0 0 0 1.5px var(--blue), 0 0 16px 4px var(--blue-line);
+  }
+}
+
+// ── Quick match ─────────────────────────────────────────────────────────────
+.quick {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+}
+
+.watch {
+  position: relative;
+  flex: none;
+  width: 64px;
+  height: 72px;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  b {
+    @include num(wide);
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 40px;
+    transform: translateY(-50%);
+    text-align: center;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--text);
+    // Sit above the hand so the number stays readable as it sweeps past.
+    text-shadow:
+      0 0 3px var(--ink-2),
+      0 0 3px var(--ink-2);
+  }
+}
+
+.watchCrown {
+  fill: var(--rule-2);
+}
+
+.watchTrack {
+  fill: color-mix(in srgb, var(--ink-2) 70%, transparent);
+  stroke: var(--rule-2);
+  stroke-width: 3;
+}
+
+.watchArc {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 72 100;
+  transform: rotate(-90deg);
+  transform-origin: 32px 40px;
+  filter: drop-shadow(0 0 3px var(--blue-line));
+}
+
+.watchTick {
+  stroke: var(--dim);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.watchHand {
+  transform-origin: 32px 40px;
+  animation: sweep 6s linear infinite;
+
+  line {
+    stroke: var(--blue);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  circle {
+    fill: var(--blue);
+  }
+}
+
+.queue {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.queueSeats {
+  display: flex;
+  gap: 6px;
+}
+
+.queueSeat {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 46px;
+  border: 1px solid var(--blue-line);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--blue) 8%, var(--ink-2));
+
+  &[data-open] {
+    grid-auto-flow: column;
+    gap: 3px;
+    border-style: dashed;
+    border-color: var(--blue);
+    background: transparent;
+
+    i {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--blue);
+      animation: blink 1.2s ease-in-out infinite;
+
+      &:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+
+      &:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+    }
+  }
+}
+
+.meter {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--rule);
+  overflow: hidden;
+
+  i {
+    display: block;
+    height: 100%;
+    background: var(--blue);
+    transform-origin: left center;
+    transform: scaleX(0.75);
+    animation: fill 3.2s ease-in-out infinite alternate;
+  }
+}
+
+// ── Practice ────────────────────────────────────────────────────────────────
+.table {
+  position: relative;
+  width: 196px;
+  height: 112px;
+}
+
+.felt {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--blue-line);
+  border-radius: 10px;
+  background:
+    radial-gradient(70% 80% at 50% 100%, color-mix(in srgb, var(--blue) 16%, transparent), transparent 75%),
+    color-mix(in srgb, var(--blue) 7%, var(--ink-2));
+  box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+.rowTop,
+.rowLeft,
+.rowRight,
+.rowYou {
+  position: absolute;
+  display: flex;
+  gap: 2px;
+}
+
+.rowTop {
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.rowLeft,
+.rowRight {
+  top: 50%;
+  flex-direction: column;
+  transform: translateY(-50%);
+}
+
+.rowLeft {
+  left: 12px;
+}
+
+.rowRight {
+  right: 12px;
+}
+
+.rowYou {
+  bottom: 10px;
+  left: 50%;
+  gap: 2px;
+  transform: translateX(-50%);
+}
+
+.hint {
+  display: inline-flex;
+  margin-left: 5px;
+  border-radius: 3px;
+  transform: translateY(-4px);
+  animation: glow 2.4s ease-in-out infinite;
+  box-shadow: 0 0 0 1.5px var(--blue), 0 0 10px 1px var(--blue-line);
+}
+
+.console {
+  position: absolute;
+  top: 44%;
+  left: 50%;
+  display: grid;
+  grid-template-columns: repeat(2, 6px);
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--rule-2);
+  border-radius: 3px;
+  background: var(--ink-2);
+  transform: translate(-50%, -50%) rotate(45deg);
+
+  i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px var(--mid);
+  }
+
+  i[data-you] {
+    background: var(--blue);
+    box-shadow: none;
+  }
+}
+
+.bot {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--mid);
+  background: var(--ink-2);
+  color: var(--mid);
+  font-size: 11px;
+
+  &[data-at="top"] {
+    top: -11px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  &[data-at="left"] {
+    left: -11px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  &[data-at="right"] {
+    right: -11px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+}
+
+.you {
+  @include label;
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--blue);
+  color: var(--blue-ink);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  line-height: 1.5;
+  transform: translateX(-50%);
+}
+
+// ── Friend room ─────────────────────────────────────────────────────────────
+.friend {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.door {
+  flex: none;
+  width: 66px;
+  height: 92px;
+  color: var(--blue);
+}
+
+.doorFrame {
+  fill: none;
+  stroke: var(--rule-2);
+  stroke-width: 3;
+}
+
+.doorLeaf {
+  fill: var(--ink-3);
+  stroke: var(--rule-2);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.doorKnob {
+  fill: var(--blue);
+}
+
+.invite {
+  display: grid;
+  justify-items: start;
+  gap: 0.6rem;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px 5px 8px;
+  border: 1px solid var(--blue-line);
+  border-radius: 999px;
+  background: var(--blue-wash);
+  color: var(--blue);
+  font-size: 15px;
+  box-shadow: 0 0 14px -2px var(--blue-line);
+
+  i {
+    display: block;
+    height: 4px;
+    border-radius: 2px;
+    background: currentColor;
+    opacity: 0.55;
+  }
+
+  i:nth-of-type(1) {
+    width: 34px;
+  }
+
+  i:nth-of-type(2) {
+    width: 18px;
+    opacity: 0.3;
+  }
+}
+
+.party {
+  display: flex;
+  gap: 6px;
+
+  i {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    font-size: 13px;
+  }
+
+  i[data-tone="1"] {
+    background: var(--blue);
+    color: var(--blue-ink);
+  }
+
+  i[data-tone="2"] {
+    background: color-mix(in srgb, var(--blue) 60%, var(--ink-2));
+    color: var(--text);
+  }
+
+  i[data-tone="3"] {
+    background: color-mix(in srgb, var(--blue) 30%, var(--ink-2));
+    color: var(--text);
+  }
+
+  i[data-bot] {
+    border: 1px solid var(--mid);
+    background: var(--ink-2);
+    color: var(--mid);
+    font-size: 12px;
+  }
+}
+
+// ── Chip tables ─────────────────────────────────────────────────────────────
+.chips {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+
+.stacks {
+  display: block;
+  width: 108px;
+  height: 76px;
+  overflow: visible;
+}
+
+.chipSide {
+  fill: var(--ink-4);
+  stroke: var(--rule-2);
+  stroke-width: 1;
+}
+
+.chipTop {
+  fill: var(--ink-3);
+  stroke: var(--rule-2);
+  stroke-width: 1;
+}
+
+.chipRing {
+  fill: none;
+  stroke: var(--dim);
+  stroke-width: 1;
+  stroke-dasharray: 2.5 2.5;
+}
+
+// The tallest stack wears the chassis color.
+.stacks [data-stack="2"] {
+  .chipSide {
+    fill: color-mix(in srgb, var(--blue) 55%, var(--ink-2));
+    stroke: var(--blue);
+  }
+
+  .chipTop {
+    fill: var(--blue);
+    stroke: var(--blue);
+  }
+
+  .chipRing {
+    stroke: var(--blue-ink);
+  }
+}
+
+.stacks [data-stack="1"] {
+  .chipTop {
+    fill: color-mix(in srgb, var(--blue) 22%, var(--ink-3));
+    stroke: var(--blue-line);
+  }
+
+  .chipSide {
+    stroke: var(--blue-line);
+  }
+}
+
+.chipTiles {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  padding-bottom: 2px;
+}
+
+:global(html[data-calm="true"]) .watchHand,
+:global(html[data-calm="true"]) .queueSeat i,
+:global(html[data-calm="true"]) .meter i,
+:global(html[data-calm="true"]) .hint {
+  animation: none;
+}

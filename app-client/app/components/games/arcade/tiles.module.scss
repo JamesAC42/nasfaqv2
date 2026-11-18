@@ -617,3 +617,24 @@
     animation: none;
   }
 }
+
+// Mahjong: a coin, a dragon and a candlestick tile, fanned.
+.mahjong {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.mjL {
+  transform: rotate(-9deg) translateY(3px);
+}
+
+.mjC {
+  z-index: 1;
+  margin: 0 -0.35rem;
+  transform: translateY(-5px);
+}
+
+.mjR {
+  transform: rotate(9deg) translateY(3px);
+}

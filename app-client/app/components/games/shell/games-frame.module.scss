@@ -29,6 +29,10 @@
   }
 }
 
+.navBeta {
+  margin-left: 0.4rem;
+}
+
 .navItem {
   @include label;
   flex: 0 0 auto;

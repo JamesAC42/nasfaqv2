@@ -13,6 +13,9 @@
 // They go out on their own channel, reactions:blackjack:{table}, and not on the table's. Someone with
 // reactions hidden doesn't subscribe and gets none of this traffic, and a push here can't disturb
 // the table state a page keeps for its own channel.
+//
+// Mahjong tables use the same thing under their own scope (reactions:mahjong:{id}) with a longer list:
+// the emoji, talent stamps for the players and cheers for a seat from the spectators (MAHJONG_REACTIONS).
 
 const socketLimits = require("../../../socketLimits");
 
@@ -25,13 +28,22 @@ const FLUSH_MS = 200;
 const SPECTATOR = -1;
 const BUCKETS_BEFORE_SWEEP = 5000;
 
-const channelOf = (tableKey) => `reactions:blackjack:${tableKey}`;
+const channelOf = (tableKey, scope = "blackjack") => `reactions:${scope}:${tableKey}`;
+
+/** What a mahjong table takes: the emoji, a stamp of your seat's talent (players), a cheer for a seat (spectators). */
+const STAMP_POSES = Object.freeze(["hype", "smug", "cope", "shock", "moon", "idle"]);
+const MAHJONG_REACTIONS = Object.freeze([...REACTIONS, ...STAMP_POSES.map((pose) => `stamp-${pose}`), "cheer-0", "cheer-1", "cheer-2", "cheer-3"]);
+/** Stamps come from a seat; cheers come from the rail, never from a player at the table. */
+const mahjongAllows = (id, seat) => (id.startsWith("stamp-") ? seat >= 0 : id.startsWith("cheer-") ? seat === SPECTATOR : true);
 
 /**
  * publish(channel, payload) sends to the table; seatOf(tableKey, userId) is the player's seat, -1 if
- * they're watching, or null if there's no such table.
+ * they're watching, or null if there's no such table. `scope` names the channels (blackjack by
+ * default), `ids` is the list a player may send, `allow(id, seat)` can refuse some of it by seat,
+ * `present(ws, tableKey)` says whether that socket is at the table, and `onFlush(tableKey, items)`
+ * hears what went out.
  */
-function createReactions({ publish, seatOf, now = Date.now, burst = BURST, perSecond = PER_SECOND, flushMs = FLUSH_MS }) {
+function createReactions({ publish, seatOf, now = Date.now, burst = BURST, perSecond = PER_SECOND, flushMs = FLUSH_MS, scope = "blackjack", ids = REACTIONS, allow = null, present = null, onFlush = null }) {
   const buckets = new Map(); // userId -> { tokens, at }
   const tables = new Map(); // tableKey -> { pending: Map<"id|seat", count>, flusher }
 
@@ -67,7 +79,8 @@ function createReactions({ publish, seatOf, now = Date.now, burst = BURST, perSe
             return [id, Number(seat), count];
           });
           pending.clear();
-          publish(channelOf(tableKey), { type: "reactions", items });
+          publish(channelOf(tableKey, scope), { type: "reactions", items });
+          onFlush?.(tableKey, items);
         }, flushMs),
       };
       tables.set(tableKey, table);
@@ -80,7 +93,7 @@ function createReactions({ publish, seatOf, now = Date.now, burst = BURST, perSe
     if (!ws?.userId || !ws.canReact) return;
     const tableKey = String(message?.table ?? "");
     // You have to be at the table: the page holds this channel while it's open.
-    if (!ws.gameChannels?.has(`blackjack:${tableKey}`)) return;
+    if (!(present ? present(ws, tableKey) : ws.gameChannels?.has(`${scope}:${tableKey}`))) return;
     const seat = seatOf(tableKey, ws.userId);
     if (seat === null || seat === undefined) return;
     const counts = message?.counts;
@@ -88,9 +101,10 @@ function createReactions({ publish, seatOf, now = Date.now, burst = BURST, perSe
 
     let added = false;
     // Over the fixed list, not over what was sent, so a stuffed message costs no more than a short one.
-    for (const id of REACTIONS) {
+    for (const id of ids) {
       const asked = counts[id];
       if (!Number.isInteger(asked) || asked <= 0) continue;
+      if (allow && !allow(id, seat)) continue;
       const granted = take(ws.userId, asked);
       if (!granted) break;
       const table = tableOf(tableKey);
@@ -109,4 +123,4 @@ function createReactions({ publish, seatOf, now = Date.now, burst = BURST, perSe
   return { handle, flushAll };
 }
 
-module.exports = { BURST, FLUSH_MS, PER_SECOND, REACTIONS, SPECTATOR, channelOf, createReactions };
+module.exports = { BURST, FLUSH_MS, MAHJONG_REACTIONS, PER_SECOND, REACTIONS, SPECTATOR, STAMP_POSES, channelOf, createReactions, mahjongAllows };

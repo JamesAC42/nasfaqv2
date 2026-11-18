@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { SiteShell } from "@/app/components/layout/site-shell";
+import { useFeature } from "@/app/lib/features";
 import { useAuth } from "@/app/providers/auth-provider";
 import styles from "@/app/components/admin/admin-frame.module.scss";
 
@@ -76,6 +77,7 @@ export function AdminFrame({ kicker = "Back office", title, blurb, aside, live =
   const pathname = usePathname() || "/admin";
   const access = useAdminAccess();
   const { user } = useAuth();
+  const mahjongOn = useFeature("mahjong");
   const items: NavItem[] = [
     { href: "/admin", label: "Overview", show: access.isStaff, exact: true },
     { href: "/admin/market-tuning", label: "Market tuning", show: access.isAdmin },
@@ -86,6 +88,7 @@ export function AdminFrame({ kicker = "Back office", title, blurb, aside, live =
     { href: "/admin/users", label: "Users", show: access.isAdmin },
     { href: "/admin/people", label: "People & roles", show: access.isAdmin },
     { href: "/admin/moderation", label: "Moderation", show: access.isAdmin },
+    { href: "/admin/mahjong-feedback", label: "Mahjong feedback", show: access.isAdmin && mahjongOn },
     { href: "/admin/announcements", label: "Announcements", show: access.isAdmin },
     { href: "/admin/front-page", label: "Front page", show: access.isAdmin },
     { href: "/admin/exchange", label: "Exchange review", show: access.isAdmin },

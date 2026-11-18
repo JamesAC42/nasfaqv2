@@ -3,17 +3,43 @@
 //   table:{id}           → { type: "table", table }
 //   blackjack:{tableKey} → { type: "blackjack", table }
 //   reactions:blackjack:{tableKey} → { type: "reactions", items: [[id, seat, count]] } (reactions.js)
+//   mahjong:{id}, lobby:mahjong, reactions:mahjong:{id}, mahjong-tournament:{id} (mahjong/tables.js)
+//   mj-cursor:{id}       → { type: "mj-cursors", cursors } players' pointers on a mahjong table's talent
+//                          select (mahjong/tables.js, handleCursor). Never table state.
+//   mj-seat:{token}      → one mahjong seat's own view. The token is a secret handed to that player
+//                          over HTTP; nothing else opens the channel.
 // Every message carries its `channel`. The hub is anonymous: everything it sends is public. Hidden information (duel picks before the
 // reveal, the dealer's hole card) is withheld by the engines before it gets here.
 
 const { WebSocketServer } = require("ws");
+const features = require("../../../features");
 
-const CHANNEL_RE = /^(lobby:[a-z0-9-]{1,40}|table:\d{1,12}|blackjack:[a-z0-9-]{1,20}|reactions:blackjack:[a-z0-9-]{1,20}|exchange)$/;
+const CHANNEL_RE = /^(lobby:[a-z0-9-]{1,40}|table:\d{1,12}|blackjack:[a-z0-9-]{1,20}|reactions:blackjack:[a-z0-9-]{1,20}|exchange|mahjong:\d{1,12}|mj-seat:[0-9a-f]{32}|reactions:mahjong:\d{1,12}|mahjong-tournament:\d{1,12}|mj-cursor:\d{1,12})$/;
+// Channels behind a feature flag: [pattern, flag]. A socket whose viewer doesn't have the flag can't
+// subscribe (the flag is read when the socket opens, like everything else about its viewer).
+const FLAGGED_CHANNELS = [[/^(lobby:mahjong$|mahjong:|mj-seat:|reactions:mahjong:|mahjong-tournament:|mj-cursor:)/, "mahjong"]];
 // `me` is the signed-in player's own feed (exchange alerts: outbid, sold, trade offers). The
 // socket is authenticated at upgrade; `me` maps to `user:{id}` and is never public.
 const ME = "me";
 const userChannel = (userId) => `user:${userId}`;
 const MAX_CHANNELS_PER_CLIENT = 8;
+// Streamed actions: a mahjong pointer comes up to 25 times a second, far past the socket's message cap
+// (socketLimits.limitMessages, 30 per 10 s). A message that starts exactly like one, and is small, skips
+// that cap (ws.exemptMessage) and is held to its own instead: past STREAMED_PER_WINDOW in a window the
+// socket is closed the same way. It is only ever handled as that action (the handler drops the extras
+// over its own rate silently).
+const STREAMED_PREFIX = '{"action":"mj-cursor"';
+const STREAMED_MAX_BYTES = 512;
+const STREAMED_PER_WINDOW = 600;
+const STREAMED_WINDOW_MS = 10_000;
+const isStreamed = (raw) => Buffer.isBuffer(raw) && raw.length <= STREAMED_MAX_BYTES && raw.toString("latin1", 0, STREAMED_PREFIX.length) === STREAMED_PREFIX;
+
+function overStreamedCap(ws) {
+  const now = Date.now();
+  if (!ws.streamed || now - ws.streamed.start >= STREAMED_WINDOW_MS) ws.streamed = { start: now, count: 0 };
+  ws.streamed.count += 1;
+  return ws.streamed.count > STREAMED_PER_WINDOW;
+}
 
 const channels = new Map(); // channel → Set<ws>
 const snapshotProviders = []; // (channel) => payload | null
@@ -31,7 +57,11 @@ function send(ws, payload) {
 
 function resolveChannel(ws, channel) {
   if (channel === ME) return ws.userId ? userChannel(ws.userId) : null;
-  return CHANNEL_RE.test(channel) ? channel : null;
+  if (!CHANNEL_RE.test(channel)) return null;
+  for (const [pattern, flag] of FLAGGED_CHANNELS) {
+    if (pattern.test(channel) && !features.enabledFor(flag, ws.audience ?? "everyone")) return null;
+  }
+  return channel;
 }
 
 function subscribe(ws, requested) {
@@ -110,19 +140,24 @@ function createGamesWss() {
     // Read when the socket opens. A suspension signs the player out, which closes this socket, so
     // the next one knows; and a verified email stays verified.
     ws.canReact = Boolean(req?.gamesUser?.email_verified && !req.gamesUser.suspension);
+    ws.audience = features.audienceOf(req?.gamesUser ?? null);
     ws.gameChannels = new Set();
+    ws.exemptMessage = isStreamed;
     ws.isAlive = true;
     ws.on("pong", () => {
       ws.isAlive = true;
     });
     ws.on("message", (raw) => {
       if (ws.readyState !== 1) return; // closed for flooding (server.js, socketLimits.limitMessages)
+      const streamed = isStreamed(raw);
+      if (streamed && overStreamedCap(ws)) return void ws.close(1008, "too many messages");
       let message;
       try {
         message = JSON.parse(String(raw));
       } catch {
         return;
       }
+      if (streamed && message?.action !== "mj-cursor") return;
       const list = Array.isArray(message?.channels) ? message.channels.map(String) : [];
       if (message?.action === "subscribe") list.forEach((channel) => subscribe(ws, channel));
       else if (message?.action === "unsubscribe") list.forEach((channel) => unsubscribe(ws, channel));

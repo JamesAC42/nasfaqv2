@@ -23,6 +23,9 @@ const VALID_ENTRY_TYPES = new Set([
   "exchange_trade_escrow",
   "exchange_trade_refund",
   "exchange_trade_settle",
+  // Mahjong: a stakes table's or a paid tournament's entry fee, and its prizes.
+  "mahjong_entry_fee",
+  "mahjong_prize_payout",
 ]);
 
 function invalidGameWallet(code = "invalid_game_wallet") {

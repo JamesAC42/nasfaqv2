@@ -1,0 +1,341 @@
+@use "../../../../styles/mixins" as *;
+
+@mixin still {
+  @media (prefers-reduced-motion: reduce) {
+    @content;
+  }
+
+  :global(html[data-calm="true"]) & {
+    @content;
+  }
+}
+
+// The end-of-hand reveal, laid over the board. Everything has its space from the first frame (lines,
+// points and scores fade in rather than being added), so nothing shifts while it plays.
+
+.reveal {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ink) 97%, transparent);
+  cursor: pointer;
+  animation: reveal-in 180ms ease-out both;
+}
+
+.card {
+  --tal: var(--blue);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: min(100%, 31rem);
+  max-height: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  &[data-draw] {
+    align-items: center;
+    text-align: center;
+  }
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+
+  small {
+    @include label;
+    font-size: 0.6rem;
+  }
+
+  h3 {
+    @include display;
+    margin: 0;
+    font-size: clamp(1.1rem, 4.5vw, 1.5rem);
+    color: var(--text);
+
+    span {
+      color: var(--tal);
+    }
+
+    small {
+      font-family: inherit;
+      font-size: 0.7em;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--mid);
+    }
+  }
+}
+
+.note {
+  max-width: 24rem;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--mid);
+}
+
+// ── The hand ────────────────────────────────────────────────────────────────
+.hand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0 0.5rem;
+  min-width: 0;
+  padding: 0.25rem 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.tiles {
+  display: inline-flex;
+  gap: 1px;
+}
+
+.land {
+  display: inline-flex;
+  margin-left: 0.2rem;
+  animation: reveal-land 320ms cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+
+  @include still {
+    animation: none;
+  }
+}
+
+.meld {
+  display: inline-flex;
+}
+
+.opened {
+  display: inline-flex;
+  animation: reveal-open 240ms ease-out both;
+  animation-delay: var(--d, 0ms);
+
+  @include still {
+    animation: none;
+  }
+}
+
+.tiles > span {
+  display: inline-flex;
+}
+
+// ── Lines and dora ──────────────────────────────────────────────────────────
+.cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.lines {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.15rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.82rem;
+
+  @media (min-width: 420px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  &[data-many] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.1rem 0.5rem;
+    font-size: 0.74rem;
+  }
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0.1rem 0.3rem;
+    border-left: 2px solid var(--tal);
+    opacity: 0;
+    transform: translateX(-10px);
+    transition:
+      opacity 140ms ease-out,
+      transform 140ms ease-out;
+
+    @include still {
+      transition: none;
+    }
+
+    &[data-on] {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+  }
+
+  b {
+    @include num;
+    color: var(--blue);
+    white-space: nowrap;
+  }
+}
+
+.dora {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px;
+  max-width: 7.5rem;
+
+  span {
+    display: inline-flex;
+  }
+}
+
+// ── Points and scores ───────────────────────────────────────────────────────
+.points {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  opacity: 0;
+  transition: opacity 140ms ease-out;
+
+  &[data-on] {
+    opacity: 1;
+  }
+
+  small {
+    @include display;
+    font-size: clamp(1rem, 4vw, 1.3rem);
+    color: var(--text);
+  }
+
+  b {
+    @include num;
+    font-size: clamp(1.6rem, 7vw, 2.4rem);
+    font-weight: 700;
+    color: var(--blue-2);
+  }
+
+  .card[data-big] & small,
+  .card[data-big] & b {
+    color: var(--blue-2);
+  }
+}
+
+.scores {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.2rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+
+  &[data-on] {
+    opacity: 1;
+  }
+
+  li {
+    --tal: var(--blue);
+    display: grid;
+    grid-template-columns: 4px minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+
+    i {
+      align-self: stretch;
+      background: var(--tal);
+    }
+
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--mid);
+    }
+
+    em {
+      @include num;
+      font-style: normal;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    b {
+      @include num;
+      min-width: 3.4rem;
+      text-align: right;
+      color: var(--mid);
+
+      &[data-dir="up"] {
+        color: var(--up);
+      }
+
+      &[data-dir="down"] {
+        color: var(--down);
+      }
+    }
+  }
+}
+
+.skip {
+  @include label;
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--rule-2);
+  background: var(--ink-2);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--text);
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes reveal-land {
+  from {
+    opacity: 0;
+    transform: translateY(-34px) scale(1.5);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes reveal-open {
+  from {
+    transform: scaleX(0.08);
+  }
+  to {
+    transform: none;
+  }
+}

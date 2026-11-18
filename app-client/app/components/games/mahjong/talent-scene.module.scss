@@ -1,0 +1,282 @@
+// The talent composites for the mahjong lobby and Learn slots (talent-scene.tsx). The frame stays dark
+// ink on both themes, like the drawn versions; positions are percentages of the frame and piece sizes
+// follow --th, the tile height the component measured to fit. Motion is gentle and off for calm visitors.
+
+.scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 60% 120% at var(--glow, 80%) 30%, color-mix(in srgb, var(--blue, #3fb8f5) 28%, transparent), transparent 70%),
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--blue, #3fb8f5) 16%, transparent) 1px, transparent 1.4px) 0 0 / 7px 7px,
+    linear-gradient(180deg, #0d1424, #0a0c11 80%);
+
+  > * {
+    position: absolute;
+  }
+}
+
+.talent {
+  display: block;
+  width: auto;
+  max-width: none;
+  z-index: 2;
+  user-select: none;
+  pointer-events: none;
+}
+
+.rail {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  background: linear-gradient(180deg, #16507a 0, #0d3a5a 7%, #0b2f4a 30%, #071d30);
+  box-shadow:
+    0 -1px 0 color-mix(in srgb, var(--blue, #3fb8f5) 60%, transparent),
+    0 -10px 24px rgba(0, 0, 0, 0.45);
+}
+
+.layer {
+  z-index: 4;
+}
+
+.under {
+  z-index: 1;
+}
+
+.row {
+  display: flex;
+  align-items: flex-end;
+  gap: calc(var(--th) * 0.3);
+}
+
+.stackRows {
+  display: grid;
+  gap: calc(var(--th) * 0.2);
+}
+
+.tiles {
+  display: flex;
+  align-items: flex-end;
+  gap: calc(var(--th) * 0.06);
+}
+
+.group {
+  display: flex;
+  gap: calc(var(--th) * 0.03);
+  flex: none;
+
+  > * {
+    flex: none;
+    filter: drop-shadow(0 calc(var(--th) * 0.05) calc(var(--th) * 0.06) rgba(0, 0, 0, 0.55));
+  }
+}
+
+.hint > * {
+  filter: drop-shadow(0 0 calc(var(--th) * 0.14) color-mix(in srgb, var(--blue, #3fb8f5) 95%, transparent));
+  transform: translateY(calc(var(--th) * -0.16));
+}
+
+.seat {
+  flex: none;
+  display: grid;
+  place-items: center;
+  height: var(--th);
+  width: calc(var(--th) * 0.75);
+  border: 2px dashed color-mix(in srgb, var(--blue, #3fb8f5) 85%, transparent);
+  border-radius: calc(var(--th) * 0.09);
+  color: var(--blue, #3fb8f5);
+  font: 700 calc(var(--th) * 0.5) / 1 var(--font-mono, ui-monospace, monospace);
+}
+
+.ring {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: calc(var(--th) * 0.9);
+  height: calc(var(--th) * 0.9);
+  border-radius: 50%;
+  border: calc(var(--th) * 0.08) solid color-mix(in srgb, var(--blue, #3fb8f5) 25%, transparent);
+  border-top-color: var(--blue, #3fb8f5);
+  border-right-color: var(--blue, #3fb8f5);
+  color: #e6ebf5;
+  font: 700 calc(var(--th) * 0.26) / 1 var(--font-mono, ui-monospace, monospace);
+}
+
+.pill {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--th) * 0.12);
+  padding: calc(var(--th) * 0.08) calc(var(--th) * 0.2);
+  border: 1px solid color-mix(in srgb, var(--blue, #3fb8f5) 70%, transparent);
+  border-radius: 999px;
+  background: rgba(10, 20, 36, 0.9);
+  color: #e6ebf5;
+  font: 600 calc(var(--th) * 0.24) / 1 var(--font-mono, ui-monospace, monospace);
+  white-space: nowrap;
+
+  svg {
+    width: calc(var(--th) * 0.3);
+    height: calc(var(--th) * 0.3);
+  }
+}
+
+.stack {
+  flex: none;
+  width: calc(var(--th) * 0.9);
+  border-radius: calc(var(--th) * 0.45) / calc(var(--th) * 0.14);
+  background: repeating-linear-gradient(180deg, var(--c) 0 calc(var(--th) * 0.1), rgba(0, 0, 0, 0.35) calc(var(--th) * 0.1) calc(var(--th) * 0.12));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+.stick {
+  position: relative;
+  flex: none;
+  width: calc(var(--th) * 1.6);
+  height: calc(var(--th) * 0.16);
+  border-radius: 99px;
+  background: #f3efe2;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+
+  &::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(var(--th) * 0.1);
+    height: calc(var(--th) * 0.1);
+    margin: calc(var(--th) * -0.05);
+    border-radius: 50%;
+    background: #d8342f;
+  }
+}
+
+.plinth {
+  display: grid;
+  justify-items: center;
+  gap: calc(var(--th) * 0.06);
+  --ph: 0.45;
+
+  i {
+    display: block;
+    width: 100%;
+    height: calc(var(--th) * var(--ph));
+    background: linear-gradient(180deg, #1c2a44, #0e1626);
+    border: 1px solid color-mix(in srgb, var(--blue, #3fb8f5) 35%, transparent);
+  }
+
+  &[data-lit] {
+    --ph: 0.8;
+
+    i {
+      background: linear-gradient(180deg, #2b6d9c, #12324f);
+      border-color: var(--blue, #3fb8f5);
+      box-shadow: 0 0 calc(var(--th) * 0.4) color-mix(in srgb, var(--blue, #3fb8f5) 60%, transparent);
+    }
+  }
+}
+
+.board {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  padding: 0 2%;
+  border: 1px solid color-mix(in srgb, var(--blue, #3fb8f5) 45%, transparent);
+  background: rgba(10, 20, 36, 0.82);
+  box-shadow: inset 0 0 30px color-mix(in srgb, var(--blue, #3fb8f5) 12%, transparent);
+}
+
+.han {
+  margin-left: calc(var(--th) * 0.3);
+  padding: calc(var(--th) * 0.08) calc(var(--th) * 0.16);
+  background: #f5b83f;
+  color: #0a0c11;
+  font: 700 calc(var(--th) * 0.3) / 1 var(--font-mono, ui-monospace, monospace);
+}
+
+.card {
+  display: grid;
+  justify-items: center;
+  gap: calc(var(--th) * 0.1);
+  padding: calc(var(--th) * 0.14) calc(var(--th) * 0.18);
+  border-radius: calc(var(--th) * 0.1);
+  background: #f6f0dd;
+  box-shadow: 0 calc(var(--th) * 0.06) calc(var(--th) * 0.2) rgba(0, 0, 0, 0.5);
+  color: #1d2433;
+  font: 700 calc(var(--th) * 0.22) / 1 var(--font-mono, ui-monospace, monospace);
+
+  &:nth-child(1) {
+    transform: rotate(-6deg);
+  }
+
+  &:nth-child(2) {
+    transform: rotate(5deg) translateY(calc(var(--th) * 0.1));
+  }
+}
+
+.pond {
+  display: grid;
+  grid-template-columns: repeat(6, auto);
+  gap: calc(var(--th) * 0.05);
+
+  > * {
+    filter: drop-shadow(0 calc(var(--th) * 0.05) calc(var(--th) * 0.06) rgba(0, 0, 0, 0.55));
+  }
+}
+
+.safe {
+  filter: drop-shadow(0 0 calc(var(--th) * 0.16) rgba(46, 227, 142, 0.95)) !important;
+}
+
+.shield {
+  flex: none;
+  width: calc(var(--th) * 0.5);
+  height: calc(var(--th) * 0.5);
+}
+
+.confetti {
+  inset: 0;
+  opacity: 0.8;
+  background:
+    radial-gradient(circle, #3fb8f5 0 2px, transparent 2.5px) 8% 18% / 30% 40%,
+    radial-gradient(circle, #f5b83f 0 2px, transparent 2.5px) 22% 6% / 24% 36%,
+    radial-gradient(circle, #2ee38e 0 1.6px, transparent 2px) 3% 30% / 34% 30%,
+    radial-gradient(circle, #ff4460 0 1.8px, transparent 2.2px) 15% 12% / 28% 44%;
+}
+
+@keyframes pulse {
+  50% {
+    border-color: color-mix(in srgb, var(--blue, #3fb8f5) 25%, transparent);
+  }
+}
+
+@keyframes lift {
+  0%,
+  30%,
+  100% {
+    transform: none;
+  }
+  12% {
+    transform: translateY(calc(var(--th) * -0.18));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :global(html:not([data-calm="true"])) {
+    .pulse {
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+
+    .lift .group {
+      animation: lift 5s ease-in-out infinite;
+    }
+
+    .lift .group:nth-child(2) {
+      animation-delay: 0.6s;
+    }
+
+    .lift .group:nth-child(3) {
+      animation-delay: 1.2s;
+    }
+  }
+}

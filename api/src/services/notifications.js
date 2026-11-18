@@ -32,6 +32,7 @@ const KIND_GROUPS = Object.freeze({
   proposal_approved: "social",
   exchange: "exchange",
   wishlist: "exchange",
+  mahjong: "social",
   checkin: null,
 });
 const KINDS = new Set(Object.keys(KIND_GROUPS));

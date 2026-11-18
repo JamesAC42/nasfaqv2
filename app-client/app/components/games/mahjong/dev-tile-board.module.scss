@@ -1,0 +1,78 @@
+@use "../../../styles/mixins" as *;
+
+.board {
+  display: grid;
+  gap: 0;
+  color: var(--text);
+
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border-bottom: 1px solid var(--rule);
+    background: var(--ink);
+
+    h1 {
+      @include display(1.6rem);
+      margin: 0;
+    }
+
+    label {
+      @include label;
+    }
+  }
+}
+
+.panel {
+  padding: 1rem;
+  background: var(--ink);
+  color: var(--text);
+  border-bottom: 1px solid var(--rule);
+
+  h2 {
+    @include section-heading;
+    margin: 0 0 1rem;
+  }
+
+  h3 {
+    @include label;
+    margin: 0 0 0.5rem;
+  }
+}
+
+.block {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--rule);
+}
+
+.run {
+  display: grid;
+  gap: 0.25rem;
+
+  small {
+    @include label;
+  }
+}
+
+.tiles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.examples {
+  display: grid;
+  gap: 0.75rem;
+
+  small {
+    @include label;
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+}

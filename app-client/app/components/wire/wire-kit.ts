@@ -25,6 +25,8 @@ export const WIRE_TAGS: Record<string, string> = {
   prediction_resolved: "Called",
   chatter_spike: "/vt/",
   oshi_change: "Oshi",
+  mahjong_yakuman: "Mahjong",
+  mahjong_tournament: "Mahjong",
 };
 
 /** A player's oshi move (behind the oshi-wire flag; the API only sends them to viewers with it). */
@@ -37,7 +39,7 @@ export const LIFTS_FAIR_VALUE = new Set(["stream_three_d", "stream_new_outfit", 
 export function wireTone(kind: string) {
   if (kind.startsWith("stream_")) return "stream";
   if (kind === "market_mover" || kind === "dividend_review" || kind === "buyback" || kind === "sold_out" || kind === "ipo") return "market";
-  if (kind === "exchange_sale" || kind === "ur_pull" || kind === "prediction_resolved" || kind === "oshi_change") return "games";
+  if (kind === "exchange_sale" || kind === "ur_pull" || kind === "prediction_resolved" || kind === "oshi_change" || kind === "mahjong_yakuman" || kind === "mahjong_tournament") return "games";
   return "record";
 }
 

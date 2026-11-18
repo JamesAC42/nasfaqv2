@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArtSlot } from "@/app/components/common/art-slot";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { firstTalentArtId } from "@/app/lib/art-manifest";
+import { useFeatures } from "@/app/lib/features";
 import { talentAccent } from "@/app/lib/talent-color";
 import { useTheme } from "@/app/providers/theme-provider";
 import { useArtStore } from "@/app/stores/art-store";
@@ -15,11 +16,13 @@ import styles from "@/app/components/how-to-play/how-to-play.module.scss";
 
 export function GlossarySection() {
   const [query, setQuery] = useState("");
+  const features = useFeatures();
   const terms = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return GLOSSARY;
-    return GLOSSARY.filter((entry) => entry.term.toLowerCase().includes(needle) || entry.def.toLowerCase().includes(needle));
-  }, [query]);
+    const open = GLOSSARY.filter((entry) => !entry.flag || features[entry.flag] === true);
+    if (!needle) return open;
+    return open.filter((entry) => entry.term.toLowerCase().includes(needle) || entry.def.toLowerCase().includes(needle));
+  }, [query, features]);
 
   return (
     <Section id="glossary" title="Floor talk, decoded" lede={<p>The words you&apos;ll see in chat, on tickets and in the rules.</p>}>

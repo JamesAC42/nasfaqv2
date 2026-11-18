@@ -1,7 +1,7 @@
 // The game's vocabulary: the how-to-play glossary and every <Term> tooltip on the site read from here.
 // `key` is what <Term k="..."> uses; the glossary anchors each entry as #term-<key>.
 
-export type GlossaryEntry = { key: string; term: string; def: string; href?: string };
+export type GlossaryEntry = { key: string; term: string; def: string; href?: string; /** A feature flag the entry needs; the how-to-play glossary only lists it for viewers it is on for. */ flag?: string };
 
 export const GLOSSARY: ReadonlyArray<GlossaryEntry> = [
   { key: "ticker", term: "Ticker", def: "A talent's short symbol, like PEK or MIK. One ticker per talent." },
@@ -48,6 +48,17 @@ export const GLOSSARY: ReadonlyArray<GlossaryEntry> = [
   { key: "margin", term: "Margin", def: "Borrowing for a pool bet once your Credit runs out: up to 25% of what your shares are worth, $100,000 at most. You opt in on each bet. It takes your Credit below zero, never touches your cash and has no interest." },
   { key: "in-the-red", term: "In the red", def: "Credit below zero, from margin or a payout staff took back. That's what you owe. Until it's paid back you can't bet or spend Credit, but stocks stay open. Any Credit that comes in pays it back, and cash never does." },
   { key: "void", term: "Void", def: "A cancelled pool. Every bet goes back where it came from, and a bet made on margin has that debt cancelled." },
+  // ── Mahjong (behind the "mahjong" flag) ──
+  { key: "mj-riichi", term: "Riichi", def: "Mahjong: with a closed hand one tile from winning, you say riichi and pay a 1,000-point stick. It is a yaku, and from then on you can only discard what you draw.", href: "/games/mahjong/learn/glossary#riichi", flag: "mahjong" },
+  { key: "mj-tenpai", term: "Tenpai", def: "Mahjong: ready. Your 13 tiles need exactly one more tile to be a winning hand, and the tiles that finish it are your waits.", href: "/games/mahjong/learn/glossary#tenpai", flag: "mahjong" },
+  { key: "mj-furiten", term: "Furiten", def: "Mahjong: if a tile you are waiting on is among your own discards, you can’t win on anyone’s discard, only by drawing it yourself.", href: "/games/mahjong/learn/glossary#furiten", flag: "mahjong" },
+  { key: "mj-yaku", term: "Yaku", def: "Mahjong: a scoring pattern. A hand needs at least one to win, and dora are not yaku.", href: "/games/mahjong/learn/yaku", flag: "mahjong" },
+  { key: "mj-han", term: "Han and fu", def: "Mahjong: han is the doubling unit of a hand’s value (each yaku and each dora adds some); fu are minipoints from its shape. Past a point a hand pays a fixed limit: mangan, haneman, baiman, sanbaiman, yakuman.", href: "/games/mahjong/learn/glossary#han", flag: "mahjong" },
+  { key: "mj-dora", term: "Dora", def: "Mahjong: a bonus tile worth one han. The tile after the dora indicator on the wall is the dora, and every red five counts too.", href: "/games/mahjong/learn/glossary#dora", flag: "mahjong" },
+  { key: "mj-calls", term: "Chi, pon, kan", def: "Mahjong: taking another player’s discard to finish a run (chi, only from the player on your left), a triplet (pon) or a four of a kind (kan). It opens your hand.", href: "/games/mahjong/learn/glossary#chi", flag: "mahjong" },
+  { key: "mj-chips", term: "Chips", def: "Mahjong beta: the record of how you finish at chip tables. Each finished game adds or subtracts a fixed number of chips by place. Chips are never a balance, can’t be spent or sent, and are worth nothing outside the beta.", href: "/games/mahjong/learn/glossary#chips", flag: "mahjong" },
+  { key: "mj-beta", term: "Beta (trial mode)", def: "Mahjong is in beta: no Cash or Credit is ever taken or paid, at any table or tournament.", href: "/games/mahjong/learn/rules#money", flag: "mahjong" },
+  { key: "mj-honba", term: "Honba", def: "Mahjong: the repeat counter. It grows whenever a hand ends without the deal passing, and adds 300 to a win on a discard.", href: "/games/mahjong/learn/glossary#honba", flag: "mahjong" },
 ];
 
 const BY_KEY = new Map(GLOSSARY.map((entry) => [entry.key, entry]));

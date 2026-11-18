@@ -42,6 +42,8 @@ const MOUNTS = {
   "games.js": "/games",
   "leaderboard.js": "/leaderboard",
   "livestreams.js": "/livestreams",
+  // Its site router (records, leaderboards, rules); the live one is the table owner's, like gameTables.js.
+  "mahjong.js": "/games/mahjong",
   "market.js": "/market",
   "news.js": "/news",
   "notifications.js": "/notifications",
@@ -240,7 +242,7 @@ test("no player-facing route sends a hidden market field or today's fair value",
   const routes = [];
   for (const [file, mount] of Object.entries(MOUNTS)) {
     const loaded = require(`../src/routes/${file}`);
-    const router = typeof loaded === "function" ? loaded : loaded.router;
+    const router = typeof loaded === "function" ? loaded : loaded.router || loaded.site;
     app.use(`/api${mount}`, router);
     for (const route of getRoutes(router)) routes.push(`/api${mount}${route === "/" ? "" : route}`);
   }

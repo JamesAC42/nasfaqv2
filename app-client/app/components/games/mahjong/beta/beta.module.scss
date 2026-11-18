@@ -1,0 +1,94 @@
+@use "../../../../styles/mixins" as *;
+
+.beta {
+  @include label;
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--warn);
+  background: var(--warn-wash);
+  color: var(--warn);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+
+.mark {
+  flex: none;
+  color: var(--dim);
+  opacity: 0.45;
+
+  &[data-earned] {
+    color: var(--blue);
+    opacity: 1;
+  }
+}
+
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8125rem;
+    color: var(--mid);
+  }
+}
+
+.shelf {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem 1.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  @include phone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-width: 0;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--rule);
+    color: var(--dim);
+
+    &[data-earned] {
+      color: var(--text);
+    }
+  }
+}
+
+.shelfText {
+  display: grid;
+  min-width: 0;
+  gap: 0.1rem;
+
+  b {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  small {
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--mid);
+  }
+}
+
+.shelfDate {
+  @include num;
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--dim);
+  white-space: nowrap;
+}
