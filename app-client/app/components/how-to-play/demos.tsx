@@ -144,7 +144,8 @@ export function TicketDemo() {
   const mid = asset?.current_mid_price ?? 12.5;
   const price = side === "buy" ? asset?.current_ask_price ?? mid : asset?.current_bid_price ?? mid;
   const gross = price * qty;
-  const fee = gross * TRADE_FEE;
+  // Buys are free; a sale pays the fee on shares bought in the last 24 hours (the example assumes all).
+  const fee = side === "buy" ? 0 : gross * TRADE_FEE;
   const total = side === "buy" ? gross + fee : gross - fee;
   const clock = now ? getMarketClock(now) : null;
   const symbol = asset?.symbol ?? "PEK";
@@ -188,7 +189,7 @@ export function TicketDemo() {
         <dl className={styles.est}>
           <dt>{side === "buy" ? "Ask" : "Bid"}</dt>
           <dd>{price.toFixed(2)}</dd>
-          <dt>Fee 1%</dt>
+          <dt>{side === "buy" ? "No fee on buys" : "Fee 1% (bought in the last 24h)"}</dt>
           <dd>{money(fee)}</dd>
           <dt className={styles.total}>{side === "buy" ? "You pay" : "You get"}</dt>
           <dd className={styles.total}>{money(total)}</dd>

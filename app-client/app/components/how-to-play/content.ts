@@ -144,7 +144,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   {
     id: "when-to-sell",
     q: "When should I sell?",
-    a: "Whenever you'd rather have the cash than the shares. The usual reasons: you're up and want to lock it in; the price has run above where you think the ticks will pull it (fair value follows the channel's views, subscribers and uploads); the channel is having a slow week, and Saturday's Dividend Review charges a share fee on the slowest growers; or you want the money for another talent. A sell fills in the next 10-minute batch at the bid, less the 1% fee, and counts toward your 180 shares a tick window. Buying back costs another 1%, so selling and rebuying often bleeds. Your position on a stock's page shows what selling right now would bring.",
+    a: "Whenever you'd rather have the cash than the shares. The usual reasons: you're up and want to lock it in; the price has run above where you think the ticks will pull it (fair value follows the channel's views, subscribers and uploads); the channel is having a slow week, and Saturday's Dividend Review charges a share fee on the slowest growers; or you want the money for another talent. A sell fills in the next 10-minute batch at the bid and counts toward your 180 shares a tick window. Shares you bought in the last 24 hours pay a 1% fee when you sell them; shares held longer sell free. Every round trip still crosses the 1.5% spread, so selling and rebuying often bleeds. Your position on a stock's page shows what selling right now would bring.",
   },
   {
     q: "Is any of this real money?",
@@ -160,7 +160,7 @@ export const FAQ: ReadonlyArray<{ q: string; a: string; id?: string }> = [
   },
   {
     q: "My order filled at a different price than I saw. Why?",
-    a: "Stock orders don't fill when you click. They wait for the next 10-minute batch and fill at the price then, plus the spread, slippage for big orders and the 1% fee. Orders ahead of you in the batch move the price too.",
+    a: "Stock orders don't fill when you click. They wait for the next 10-minute batch and fill at the price then, plus the spread, slippage for big orders and, on a sale of shares bought in the last 24 hours, the 1% fee. Orders ahead of you in the batch move the price too.",
   },
   {
     q: "My order got rejected. What happened?",

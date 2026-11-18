@@ -234,7 +234,7 @@ function WhatHappensNow({ fill, asset, tick, until, onLeave }: { fill: Slide; as
         <li>
           The price moves whenever players trade, and at the {tick} tick in {until}, when it&apos;s pulled toward {fill.symbol}&apos;s hidden fair value.
         </li>
-        <li>Hold through Saturday 00:00 ET: the fastest-growing channels pay their holders a dividend, the slowest charge a fee.</li>
+        <li>Hold through Saturday 00:00 ET: every holder gets 0.25% of the stock’s value per share, the fastest-growing channels pay a dividend on top, the slowest charge a fee.</li>
       </ul>
       <Link href="/how-to-play#when-to-sell" onClick={onLeave}>
         When should I sell? →

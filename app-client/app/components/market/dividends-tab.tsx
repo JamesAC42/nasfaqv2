@@ -138,7 +138,7 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
                 <StockChip symbol={worst.symbol} /> the worst, charging {money(Math.abs(worst.per_share))} a share
               </>
             ) : null}
-            . {review.flat_count} stocks sat close enough to the middle to pay nothing.
+            . {review.flat_count} stocks sat close enough to the middle to pay {review.holder_dividend_rate ? "only what every holder gets" : "nothing"}.
             {review.credit_converted ? (
               <>
                 {" "}
@@ -321,7 +321,7 @@ export function DividendsTab({ initialDate }: { initialDate?: string }) {
         ) : null}
         <p className={ui.note}>
           How it works: each channel&apos;s value this week against last week, ranked on a bell curve across the market. The middle pays nothing; the rest pay a
-          dividend or charge a fee per share held, up to 10% of the stock&apos;s value. Max shares reset from subscriber count. <Link href="/how-to-play#weekly">How to play →</Link>
+          dividend or charge a fee per share held, up to 10% of the stock&apos;s value. On top of that, every holder gets 0.25% of each stock&apos;s value per share. Max shares reset from subscriber count. <Link href="/how-to-play#weekly">How to play →</Link>
         </p>
       </div>
     </>
@@ -437,7 +437,7 @@ function NoEvaluationYet({ next, now }: { next: number | null; now: number | nul
         <h2>The first Dividend Review lands Saturday</h2>
         <p>
           Every Saturday at midnight New York time, each channel&apos;s week is ranked against the rest. The top pay a <Term k="dividend">dividend</Term> per share you hold, the
-          bottom charge a fee, the middle nothing. Max shares reset from subscriber count, and any stock left over its max freezes for a <Term k="buyback">buyback</Term>.
+          bottom charge a fee, the middle nothing, and every holder gets 0.25% of each stock&apos;s value per share on top. Max shares reset from subscriber count, and any stock left over its max freezes for a <Term k="buyback">buyback</Term>.
           {next && now ? (
             <>
               {" "}

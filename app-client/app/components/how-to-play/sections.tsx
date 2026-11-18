@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { SceneArt } from "@/app/components/common/scene-art";
 import { StockChip } from "@/app/components/common/stock-chip";
-import { GAMES, IPO_ROOKIE_DAYS, SECTIONS, SHARES_PER_WINDOW, TRADE_FEE, type SectionId } from "@/app/components/how-to-play/content";
+import { GAMES, IPO_ROOKIE_DAYS, SECTIONS, SHARES_PER_WINDOW, type SectionId } from "@/app/components/how-to-play/content";
 import { ChibiTag, PoolDemo, PullDiagram, RarityFan, TalentStrip, TicketDemo, TickTimeline, useBusiestTalents } from "@/app/components/how-to-play/demos";
 import { TickKoma } from "@/app/components/how-to-play/tick-koma";
 import { BuybackDemo } from "@/app/components/how-to-play/buyback-demo";
@@ -132,7 +132,7 @@ export function MarketSection() {
           {
             k: "hidden",
             title: "Fair value",
-            body: "Repriced every morning from subscribers, recent views against their usual, sub growth and upload streaks. Quiet channels get marked down. It moves 25% a day at most. It also includes a small daily factor only the market knows, so it can’t be calculated exactly. Today's number stays hidden until the day's last tick has landed; then the daily report shows it.",
+            body: "Repriced every morning from subscribers, recent views against their usual, sub growth and upload streaks. Quiet channels get marked down. It moves 25% a day at most. It grows 0.05% a day on top, so the market drifts up over time. It also includes a small daily factor only the market knows, so it can’t be calculated exactly. Today's number stays hidden until the day's last tick has landed; then the daily report shows it.",
           },
           {
             k: "live",
@@ -182,7 +182,7 @@ export function TradingSection() {
             { title: "Wait for the batch", body: "The ticket shows which batch you're in. Cancel from Activity any time before it runs." },
             {
               title: "It fills at the price then",
-              body: "Buys pay the ask, sells get the bid. Big orders slip a little further, and there's a 1% fee both ways.",
+              body: "Buys pay the ask, sells get the bid, 1.5% apart. Big orders slip a little further. Buying is free; selling shares within 24 hours of buying them costs 1%.",
             },
             {
               title: "Buys hold their cash",
@@ -195,7 +195,7 @@ export function TradingSection() {
       <Rules
         cols={3}
         items={[
-          { k: "1%", title: "Fee on every fill", body: "Taken on buys and sells. Round trips cost you 2%, so churning bleeds." },
+          { k: "1%", title: "Fee on quick sells", body: "Only on shares you sell within 24 hours of buying them, newest first. Buys are free, and so is selling anything you've held longer. The ticket shows when yours turn fee-free." },
           { k: "180 sh", title: "Per tick window", body: "You can queue up to 180 shares between two ticks, buys and sells together." },
           {
             k: "09:00",
@@ -288,6 +288,7 @@ export function WeeklySection() {
           <p>
             Every <b>Saturday at 00:00</b>{" "}New York time the market takes stock. Each channel&apos;s week is ranked against every other channel on a bell curve. The best weeks pay a{" "}
             <Term k="dividend">dividend</Term> on every share you hold; the worst charge a <b>share fee</b>. The middle pays nothing. Never more than 10% of the stock&apos;s value either way.
+            On top of that, <b>every holder gets 0.25%</b>{" "}of the stock&apos;s value per share, whatever kind of week it had.
           </p>
           <p>
             Dividends are paid in <Term k="credit">Credit</Term>. Fees come out of your Credit first, then your cash, even if that takes your cash below zero. With cash below zero, you
@@ -320,6 +321,7 @@ export function WeeklySection() {
         items={[
           { k: "dividends", title: "Good weeks pay", body: "A channel whose numbers grew faster than the rest of the market this week pays you per share. It's a race against every other channel, every week." },
           { k: "share fees", title: "Bad weeks cost", body: "A channel that slipped against the rest charges holders per share. Holding a stock through a dead week costs you." },
+          { k: "+0.25%", title: "Holding pays", body: "Every share of every stock you hold earns 0.25% of its value each Saturday, in Credit, on top of its dividend or fee." },
           { k: "max shares", title: "Supply resets", body: "Max shares reset from subscriber count: bigger channels, more shares. A stock can go from plenty for sale to sold out overnight." },
           // With buyback-spotlight these two become the walkthrough below.
           ...(buybackSpotlight
@@ -370,7 +372,6 @@ export function WeeklySection() {
 // ── IPOs ────────────────────────────────────────────────────────────────────
 
 export function IpoSection() {
-  const fee = `${Math.round(TRADE_FEE * 100)}%`;
   return (
     <Section
       id="ipo"
@@ -413,12 +414,12 @@ export function IpoSection() {
           {
             k: "after listing",
             title: "No sure thing",
-            body: `The ticks pull the price toward fair value, which is repriced every morning, so it can fall below the IPO price. Buying after listing costs the ask plus the ${fee} fee.`,
+            body: "The ticks pull the price toward fair value, which is repriced every morning, so it can fall below the IPO price. Buying after listing costs the ask. The shares you got in the IPO sell with no fee.",
           },
           {
             k: `${IPO_ROOKIE_DAYS} days`,
             title: "Rookies",
-            body: "A new listing pays no dividend and charges no share fee at its first four Saturday reviews, and its max shares never drop below what players hold.",
+            body: "A new listing isn't ranked at its first four Saturday reviews: no dividend for a good week, no share fee for a bad one, just the 0.25% every holder gets. Its max shares never drop below what players hold.",
           },
           {
             k: `${SHARES_PER_WINDOW} sh`,
