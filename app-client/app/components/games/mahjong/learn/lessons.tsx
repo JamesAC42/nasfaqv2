@@ -521,7 +521,8 @@ export const LESSONS: Lesson[] = [
         <ClockFacts />
         <p>
           When the clock runs out, the tile you just drew is discarded for you and any call on offer is passed. Time out twice in a row, or leave, and the seat goes on <b>autopilot</b> until you act again. At a free
-          table autopilot is a bot, which plays properly. At a table with Credit on it, autopilot only throws whatever it draws, so walking away can never beat playing.
+          table autopilot is a bot, which plays properly. At a table with Credit on it, autopilot only throws whatever it draws, so walking away can never beat playing. Once you leave you can start another
+          game straight away, and going back to the table gives you your seat back.
         </p>
         <p>
           The courtesy is the usual one: don’t sit on a decision you’ve already made, and if you have to go, leave rather than stalling three people. Nobody minds a real think about a riichi or a fold.

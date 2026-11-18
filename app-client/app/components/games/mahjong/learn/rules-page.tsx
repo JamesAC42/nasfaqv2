@@ -368,7 +368,7 @@ export function RulesPage() {
           </li>
           <li>
             <b>Away seats.</b> Two timeouts in a row, or leaving, puts the seat on autopilot until the player acts again. On free tables autopilot is a bot. On paid tables it only discards what it draws, so walking away can
-            never beat playing.
+            never beat playing. A player who leaves can start another game at once, and going back to the table takes the seat back.
           </li>
           <li>
             <b>Reconnecting</b> is just loading the page: your seat’s view is the whole state.

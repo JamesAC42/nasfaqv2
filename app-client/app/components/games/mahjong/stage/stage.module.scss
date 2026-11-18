@@ -532,6 +532,17 @@
     transform: translate(-50%, -50%);
   }
 
+  // A burst of the seat's color behind the sticker, so it reads apart from the figure it stands over.
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 4% -6% -4%;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--seat) 70%, transparent), color-mix(in srgb, var(--seat) 25%, transparent) 60%, transparent);
+    opacity: 0;
+    animation: fade 2.8s ease forwards;
+  }
+
   @include phone {
     --size: 4.6rem;
     transform: translate(-50%, calc(-100% - 0.7rem));
@@ -539,6 +550,7 @@
 }
 
 .stampFace {
+  position: relative;
   display: block;
   width: 100%;
   height: 100%;
