@@ -62,7 +62,8 @@ export const HAND_LEAN = -0.42;
  * Side players sit behind their own side of the table, level with the middle of their hand so they
  * read as sitting behind it (the frame may cut off their outer side), and just outside the rim: the
  * rim then passes in front of them on its slant, hiding the lower body along one clean edge, as with
- * someone seated behind a table's edge. Turning them partway toward the middle keeps their inner shoulder from reaching back over the rim and flattens that slant. The
+ * someone seated behind a table's edge. They face the lens with only a slight turn toward the middle
+ * (SIDE_TURN), which keeps their inner shoulder from reaching back over the rim. The
  * player across is further from the lens, so their head is set larger to come out about the same size.
  * A phone's frame ends at the side rims, so there they move up to the far corners of their own side,
  * still turned toward the middle, and the one across moves back.
@@ -72,6 +73,7 @@ export type PortraitSpot = { p: Vec3; ipd: number; shoulder: number; maxHeight: 
 /** Where a side player sits on a landscape screen: out from the middle (the rim is at 44.5) and along their side (their hand is centered on 0). */
 const SIDE_X = 46;
 const SIDE_Z = -8;
+const SIDE_TURN = 0.4;
 
 export function portraitSpot(seat: number, narrow: number): PortraitSpot {
   const lerp = (a: number, b: number) => a + (b - a) * narrow;
@@ -89,7 +91,7 @@ export function portraitSpot(seat: number, narrow: number): PortraitSpot {
     x *= out;
     z *= out;
   }
-  return { p: [side * x, lerp(-1.2, -6), z], ipd: lerp(5.8, 4.2), shoulder: lerp(28, 20), maxHeight: lerp(42, 28), card: lerp(13, 10), size: lerp(30, 21), turn: 0.8 - 0.5 * swing };
+  return { p: [side * x, lerp(-1.2, -6), z], ipd: lerp(5.8, 4.2), shoulder: lerp(28, 20), maxHeight: lerp(42, 28), card: lerp(13, 10), size: lerp(30, 21), turn: SIDE_TURN + (0.3 - SIDE_TURN) * swing };
 }
 
 /**
