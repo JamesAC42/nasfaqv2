@@ -121,7 +121,7 @@ export function FirstDaysCard({ onPickOshi, verifyNotice = true }: { onPickOshi?
         )
       ) : (
         <>
-          Saturday 00:00 ET{reviewIn ? ` (in ${reviewIn})` : ""}, the fastest-growing channels pay their holders a dividend and the slowest charge a fee.
+          Saturday 00:00 ET{reviewIn ? ` (in ${reviewIn})` : ""}, every holder gets 0.25% of each stock’s value per share, the fastest-growing channels pay a dividend on top and the slowest charge a fee.
           {oshiProtection ? " Your oshi won’t charge you one at your first Saturday with them." : null}
         </>
       ),

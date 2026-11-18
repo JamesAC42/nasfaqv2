@@ -100,8 +100,9 @@ is the recommendation for the first IPO.
 - **Weekly evaluation.** A stock's first four Saturdays can't cut max shares below what players hold
   (the "no shrink below held" guard today only covers the very first evaluation ever). Separately,
   every new talent shifts everyone else's z-score a little; expected and fine.
-- **Dividends and fees.** A **rookie period**: no dividend or fee for her first four weekly
-  evaluations, because the week-over-week shift reads the launch spike. **[BBB]** four weeks?
+- **Dividends and fees.** A **rookie period**: no ranked dividend or fee for her first four weekly
+  evaluations, because the week-over-week shift reads the launch spike. **[BBB]** four weeks? The
+  0.25% holder dividend every holding gets (`core-market.md`) pays on her shares from the first.
 - **Indexes.** A stock joins its unit and the all-talent index on listing day at 100. Because the
   index averages each stock against its own first day, adding one moves the equal-weight index by
   about a tenth of a point. The new unit gets its own index from listing day.
@@ -218,8 +219,8 @@ copy and `IPO_ROOKIE_DAYS` in `how-to-play/content.ts` too.
 - Trading refuses a stock with no fair value.
 - Settlement opens a listed IPO stock's first day at its IPO price.
 - Debut mode: `computeDerivedSnapshot` takes the talent's first tracked day for IPO talents.
-- Weekly evaluation: rookies (listed in the last 28 days) get no dividend or fee, are left out of the
-  ranking, and their max shares never drop below what's held.
+- Weekly evaluation: rookies (listed in the last 28 days) get no ranked dividend or fee (only the
+  holder dividend), are left out of the ranking, and their max shares never drop below what's held.
 
 **Under a crowd:**
 

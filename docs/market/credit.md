@@ -26,12 +26,12 @@ writes one ledger row with `cash_delta` and `credit_delta`.
 |---|---|---|
 | Buying shares | Cash (queued buys hold it: `trading.js`) | |
 | Selling shares | | Cash, plus a little Credit (`sellCreditRate`) |
-| Trading fee (1%) | Credit first, then Cash | |
+| Trading fee (1%, only on shares sold within 24 hours of buying them; buys pay none) | Credit first, then Cash | |
 | Games, capsule machine, card gacha (games wallet) | Credit only (`sideModeFunds`) | Credit; refunds go back where they came from |
 | Blackjack | Credit only, with its own weekly and daily limits (`services/games/tables/blackjackLimits.js`) | Credit; refunds go back where they came from |
 | Card exchange: bids, buys, trade escrow | Credit only (`sideModeFunds`) | Credit (sales, a trade's cash); refunds go back where they came from |
 | Predictions | Credit only (`sideModeFunds`) | Credit (payouts, sales); releases and void refunds go back where they came from. A void also takes back what a player made selling, as Credit (can go below zero) |
-| Dividends (Saturday) | | Credit |
+| Dividends (Saturday), the 0.25% holder dividend included | | Credit |
 | Margin on prediction pools | Credit only, going below zero. The debt counts against net worth and never stops stock trading | Only Credit pays it back, never Cash |
 | Share fees (Saturday) | Credit first, then Cash (can go below zero) | |
 | Forced buybacks (Saturday) | | Cash (it's a share sale) |
@@ -96,7 +96,7 @@ new max shares. A date's review runs once, so it pays once, and a preview writes
 that date, so there's no real review and no bailouts that week.
 
 **Bricked.** The player's shares, Cash and Credit are each worth less than one share of the cheapest
-stock they could buy, fee included (about $5.12 in November 2026; a frozen or sold-out stock doesn't count):
+stock they could buy, at the ask with slippage (buys pay no fee; a frozen or sold-out stock doesn't count):
 
 | Balance | What counts |
 |---|---|

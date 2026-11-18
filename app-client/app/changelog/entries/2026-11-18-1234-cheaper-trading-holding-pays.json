@@ -1,0 +1,21 @@
+{
+  "title": "Cheaper trading, and holding pays",
+  "changes": [
+    {
+      "kind": "improved",
+      "text": "Buying is free. The 1% fee is only on shares you sell within 24 hours of buying them. Shares you’ve held longer sell with no fee at all, and the trade ticket tells you when yours turn fee-free."
+    },
+    {
+      "kind": "improved",
+      "text": "The spread is 1.5% on every stock, down from 4%, so a buy starts much closer to the price you see."
+    },
+    {
+      "kind": "new",
+      "text": "Fair values grow a little every day, 0.05%, so the market drifts up over time."
+    },
+    {
+      "kind": "new",
+      "text": "Every Saturday, every holder gets 0.25% of each stock’s value per share as Credit, on top of that stock’s dividend or share fee. Holding pays, whatever kind of week it had."
+    }
+  ]
+}
