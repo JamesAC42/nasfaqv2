@@ -333,6 +333,17 @@
   }
 }
 
+// "#3 on oshiboard", beside the oshi: in the oshi's color, linking to her board.
+.board {
+  color: var(--tal);
+  font-weight: 600;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
 .tag,
 .tagWarn {
   padding: 0 0.35rem;

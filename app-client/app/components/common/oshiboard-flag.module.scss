@@ -1,0 +1,230 @@
+@use "../../styles/mixins" as *;
+
+// ── Profile header standard ──────────────────────────────────────────────
+// Hangs from the top edge of the header (.banner in profile.module.scss, which clips the aura).
+// --fw is the cloth's width for this rank; the drawing is 1.36 times that with the rod's finials.
+.banner {
+  --scale: 1;
+  --w: calc(var(--fw) * 1.36 * var(--scale));
+  position: absolute;
+  top: 0;
+  // Near the right edge: over the fading edge of the oshi's key art, clear of her face.
+  right: clamp(0.75rem, 2.5%, 2rem);
+  z-index: 1;
+  display: block;
+  width: var(--w);
+  line-height: 0;
+  -webkit-tap-highlight-color: transparent;
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  @include phone {
+    --scale: 0.68;
+    right: 0.75rem;
+  }
+}
+
+.sway {
+  position: relative;
+  display: block;
+  transform-origin: 50% 0;
+
+  .svg {
+    width: var(--w);
+    height: auto;
+    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.35));
+  }
+
+  .banner:hover & .svg {
+    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.35)) brightness(1.08);
+  }
+}
+
+.svg {
+  display: block;
+  overflow: visible;
+}
+
+.mark {
+  pointer-events: none;
+}
+
+.letter {
+  font-family: var(--font-chicago), "Arial Black", sans-serif;
+  font-weight: 400;
+}
+
+// Tassels swing a touch behind the cloth.
+.tassel {
+  transform-box: fill-box;
+  transform-origin: 50% 0;
+  animation: tassel 1.7s ease-in-out var(--swing-delay, 0s) infinite alternate;
+}
+
+@keyframes tassel {
+  from {
+    transform: rotate(-7deg);
+  }
+  to {
+    transform: rotate(7deg);
+  }
+}
+
+// ── Aura ─────────────────────────────────────────────────────────────────
+// A soft light behind the cloth, in its own color: strongest for first place, a whisper for the top
+// ten. It breathes slowly; first place also has faint turning rays. Transform and opacity only.
+.aura {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  width: calc(var(--w) * 2.3);
+  aspect-ratio: 1;
+  pointer-events: none;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--cloth-hi) 70%, transparent) 0%,
+    color-mix(in oklab, var(--cloth) 34%, transparent) 46%,
+    color-mix(in oklab, var(--cloth) 10%, transparent) 72%,
+    transparent 100%
+  );
+  opacity: var(--aura, 0.5);
+  animation: breathe 5.2s ease-in-out infinite alternate;
+}
+
+.banner[data-tier="crown"] {
+  --aura: 0.95;
+
+  .aura {
+    width: calc(var(--w) * 2.8);
+    background:
+      radial-gradient(closest-side, rgba(255, 236, 170, 0.55) 0%, rgba(245, 197, 66, 0.2) 34%, transparent 62%),
+      radial-gradient(
+        closest-side,
+        color-mix(in oklab, var(--cloth-hi) 70%, transparent) 0%,
+        color-mix(in oklab, var(--cloth) 36%, transparent) 50%,
+        transparent 100%
+      );
+  }
+
+  // First place glows: a gold rim light and a wider bloom in the cloth's color.
+  .sway .svg {
+    filter: drop-shadow(0 0 3px rgba(255, 228, 140, 0.7)) drop-shadow(0 0 14px color-mix(in oklab, var(--cloth-hi) 75%, rgba(245, 197, 66, 0.6))) drop-shadow(0 3px 3px rgba(0, 0, 0, 0.3));
+  }
+
+  &:hover .sway .svg {
+    filter: drop-shadow(0 0 4px rgba(255, 228, 140, 0.85)) drop-shadow(0 0 18px color-mix(in oklab, var(--cloth-hi) 80%, rgba(245, 197, 66, 0.7))) drop-shadow(0 3px 3px rgba(0, 0, 0, 0.3));
+  }
+}
+
+.banner[data-tier="silver"] {
+  --aura: 0.72;
+}
+
+.banner[data-tier="bronze"] {
+  --aura: 0.58;
+}
+
+.banner[data-tier="top10"] {
+  --aura: 0.32;
+
+  .aura {
+    width: calc(var(--w) * 1.9);
+    animation: none;
+  }
+}
+
+.rays {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, transparent 0deg 9deg, rgba(255, 240, 190, 0.13) 13.5deg, transparent 18deg 30deg);
+  -webkit-mask-image: radial-gradient(closest-side, transparent 22%, #000 38%, transparent 66%);
+  mask-image: radial-gradient(closest-side, transparent 22%, #000 38%, transparent 66%);
+  animation: spin 90s linear infinite;
+}
+
+@keyframes breathe {
+  from {
+    opacity: calc(var(--aura, 0.5) * 0.72);
+    transform: translate(-50%, -50%) scale(0.94);
+  }
+  to {
+    opacity: var(--aura, 0.5);
+    transform: translate(-50%, -50%) scale(1.04);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+// On a light ground an added glow just washes out: the aura turns into a deeper tint of the cloth,
+// and first place keeps its gold.
+:global(html[data-theme="light"]) {
+  .aura {
+    background: radial-gradient(
+      closest-side,
+      color-mix(in oklab, var(--cloth) 42%, transparent) 0%,
+      color-mix(in oklab, var(--cloth) 18%, transparent) 50%,
+      transparent 100%
+    );
+  }
+
+  .banner[data-tier="crown"] .aura {
+    background:
+      radial-gradient(closest-side, rgba(245, 197, 66, 0.5) 0%, rgba(245, 197, 66, 0.16) 36%, transparent 64%),
+      radial-gradient(closest-side, color-mix(in oklab, var(--cloth) 40%, transparent) 0%, transparent 100%);
+  }
+
+  .rays {
+    background: repeating-conic-gradient(from 0deg, transparent 0deg 7deg, rgba(214, 160, 30, 0.12) 13.5deg, transparent 18deg 30deg);
+  }
+
+  .banner[data-tier="crown"] .sway .svg {
+    filter: drop-shadow(0 0 3px rgba(214, 160, 30, 0.75)) drop-shadow(0 0 12px rgba(245, 197, 66, 0.55)) drop-shadow(0 3px 3px rgba(0, 0, 0, 0.22));
+  }
+}
+
+// v1 Classic dresses the profile as the old site, whose header doesn't clip: no aura there.
+:global([data-v1-classic]) .aura {
+  display: none;
+}
+
+// Calm mode (and reduced motion, which turns it on by default): everything holds still.
+:global(html[data-calm="true"]) {
+  .aura,
+  .rays,
+  .tassel {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aura,
+  .rays,
+  .tassel {
+    animation: none;
+  }
+}
+
+// ── Leaderboard pennant ─────────────────────────────────────────────────
+.pennant {
+  display: inline-block;
+  flex: none;
+  line-height: 0;
+  vertical-align: -0.35em;
+
+  .svg {
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+  }
+
+  &[data-tier="crown"] .svg {
+    filter: drop-shadow(0 0 2px rgba(255, 220, 120, 0.85)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+  }
+}

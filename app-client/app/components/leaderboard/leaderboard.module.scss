@@ -416,6 +416,12 @@
       color: var(--blue);
     }
   }
+
+  // The oshiboard standard beside a neighbor's name.
+  .pennant {
+    margin-left: 0.3rem;
+    vertical-align: -0.3em;
+  }
 }
 
 // ── Table ────────────────────────────────────────────────────────────────

@@ -611,10 +611,10 @@ export function CommunitySection() {
             k: "oshi",
             title: "Oshi & oshiboards",
             body: oshiProtection
-              ? "Pick your oshi on your profile: their shares you hold all week skip Saturday's share fee. Make them your biggest bag too and you're ranked on their oshiboard by shares held."
-              : "Pick your oshi on your profile. Make them your biggest bag too and you're ranked on their oshiboard by shares held.",
+              ? "Pick your oshi on your profile: their shares you hold all week skip Saturday's share fee. Make them your biggest bag too and you're ranked on their oshiboard by shares held. On the board, a banner in your color with their mark hangs on your profile: the higher you rank, the bigger it gets, and the top three fly gold, silver and bronze."
+              : "Pick your oshi on your profile. Make them your biggest bag too and you're ranked on their oshiboard by shares held. On the board, a banner in your color with their mark hangs on your profile: the higher you rank, the bigger it gets, and the top three fly gold, silver and bronze.",
           },
-          { k: "/leaderboard", title: "Leaderboard", body: "Net worth over a day, a week or all time. Filter to friends and rivals, or flip to a talent's oshiboard." },
+          { k: "/leaderboard", title: "Leaderboard", body: "Net worth over a day, a week or all time. Filter to friends and rivals, or flip to a talent's oshiboard. A small banner by a name means they're on their oshi's oshiboard." },
           {
             k: "badges",
             title: "Achievements",
