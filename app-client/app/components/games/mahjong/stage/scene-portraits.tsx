@@ -15,7 +15,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { PORTRAIT_PENDING, portraitArt, type FaceMetrics } from "@/app/components/games/mahjong/stage/art";
-import { portraitSpot, portraitYaw } from "@/app/components/games/mahjong/stage/geometry";
+import { LANDSCAPE, portraitSpot, portraitYaw } from "@/app/components/games/mahjong/stage/geometry";
 import { useStageStore, type Mood } from "@/app/components/games/mahjong/stage/model";
 import { basePose, frameTop, narrowness, rimLine } from "@/app/components/games/mahjong/stage/rig";
 import { fx } from "@/app/components/games/mahjong/stage/fx";
@@ -23,8 +23,6 @@ import { radialTexture, silhouetteTexture } from "@/app/components/games/mahjong
 import { artId, lookupArt, textureArtUrl, type ChibiPose } from "@/app/lib/art-manifest";
 import { useArtStore } from "@/app/stores/art-store";
 
-/** Scratch values for orienting the cutouts each frame. */
-const TMP = { right: new THREE.Vector3(), forward: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), lean: new THREE.Quaternion(), yaw: new THREE.Quaternion() };
 const MOODS: Mood[] = ["idle", "think", "riichi", "win"];
 /** How far above the rim's line the eyes sit, in eye distances: head, shoulders and the upper chest show. */
 const SHOW = 3.4;
@@ -402,26 +400,22 @@ function Portrait({ seat, day }: { seat: number; day: boolean }) {
     const g = group.current;
     const mesh = plane.current;
     if (!g || !mesh) return;
-    // Face the lens (side players turned partway toward the middle about the vertical, see portraitSpot).
-    // The player across leans back part of the way toward it so a steep phone camera doesn't see them
-    // squashed. The side players lean back by the camera's own downward angle, about the camera's
-    // left-right axis: they then stand square to the screen, upright in the frame, where standing
-    // straight up they'd look tipped outward by the perspective of a camera looking down.
+    // Face the lens, side players turned partway toward the middle about the vertical (see portraitSpot),
+    // then lean back and (side players) tip their top toward the table by the angles set by eye in
+    // LANDSCAPE. On a phone they ease into leaning back part of the way toward its steep camera instead,
+    // so it doesn't see them squashed.
     const camera = state.camera;
     const dx = camera.position.x - g.position.x;
     const dz = camera.position.z - g.position.z;
     const dy = camera.position.y - g.position.y;
     const win = fx.seat[seat];
     const yaw = portraitYaw(camera.position.x, camera.position.z, g.position.x, g.position.z, spot.turn);
-    if (seat === 2) {
-      g.rotation.set(-Math.atan2(dy, Math.hypot(dx, dz)) * 0.6, yaw, 0, "YXZ");
-    } else {
-      const right = TMP.right.set(1, 0, 0).applyQuaternion(camera.quaternion);
-      const down = -TMP.forward.set(0, 0, -1).applyQuaternion(camera.quaternion).y;
-      TMP.lean.setFromAxisAngle(right, -Math.asin(Math.min(1, Math.max(-1, down))));
-      TMP.yaw.setFromAxisAngle(TMP.up, yaw);
-      g.quaternion.multiplyQuaternions(TMP.lean, TMP.yaw);
-    }
+    const n = narrowness(state.size.width / Math.max(1, state.size.height));
+    const auto = Math.atan2(dy, Math.hypot(dx, dz)) * 0.6;
+    const deg = Math.PI / 180;
+    const tilt = (seat === 2 ? LANDSCAPE.acrossTilt : LANDSCAPE.sideTilt) * deg;
+    const roll = seat === 2 ? 0 : LANDSCAPE.sideRoll * deg * (seat === 1 ? 1 : -1);
+    g.rotation.set(-(tilt + (auto - tilt) * n), yaw, roll * (1 - n), "YXZ");
     g.scale.setScalar(1 + 0.05 * win);
 
     const f = fade.current;
