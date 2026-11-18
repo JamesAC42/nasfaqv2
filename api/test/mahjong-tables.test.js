@@ -344,6 +344,31 @@ test("mahjong tables and money, end to end", { skip: !databaseUrl, timeout: 600_
     assert.equal(profile.totals.hands, record.hands.length);
   });
 
+  await t.test("leaving a game under way frees the player at once; the seat plays on and can be taken back", async () => {
+    const quitter = await user("quitter");
+    const stayer = await user("stayer");
+    const id = (await tables.createTable({ userId: quitter, kind: "ranked", length: "east" })).table.id;
+    await tables.createTable({ userId: stayer, kind: "ranked", length: "east" });
+    const table = liveTable(id);
+    table.startAt = 1;
+    await tables.withLock(id, () => tables._tick(table));
+    assert.equal(table.status, "playing");
+    await tables.leaveTable({ userId: quitter, tableId: id });
+    const seat = table.seats.find((entry) => entry.user_id === quitter);
+    assert.equal(seat.away, true, "the seat goes on autopilot");
+    assert.equal(tables.tableOfUser(quitter), null, "and the player is free");
+    // Free to play elsewhere, and while they do, the old seat isn't theirs to take back.
+    const practice = await tables.createTable({ userId: quitter, kind: "practice", level: "easy" });
+    await assert.rejects(tables.returnToSeat({ userId: quitter, tableId: id }), { code: "already_seated" });
+    assert.equal(seat.away, true);
+    await tables.leaveTable({ userId: quitter, tableId: practice.table.id });
+    // Back at the first table: the seat is theirs again, and their one live seat.
+    await tables.returnToSeat({ userId: quitter, tableId: id });
+    assert.equal(seat.away, false);
+    assert.equal(tables.tableOfUser(quitter).id, id);
+    await playOut(id);
+  });
+
   let stakesId;
   await t.test("a stakes table: Credit only, four players, a fixed prize table and a cut", async () => {
     const fee = 1000;

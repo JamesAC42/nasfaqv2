@@ -113,14 +113,11 @@ function newToken() {
 }
 
 /** A talent for a seat: the player's oshi, else one picked by who they are; never one already at the table. */
-function talentFor(table, wanted, salt, { bot = false } = {}) {
+function talentFor(table, wanted, salt) {
   const taken = new Set(table.seats.filter(Boolean).map((seat) => seat.talent));
-  if (wanted && SETTINGS.excludedTalents.includes(wanted)) wanted = null; // an oshi no seat may take
+  if (wanted && talentSymbols.length && !talentSymbols.includes(wanted)) wanted = null; // an oshi no seat may take (seatableTalents)
   if (wanted && !taken.has(wanted)) return wanted;
-  const open = talentSymbols.filter((symbol) => !taken.has(symbol));
-  // Bots sit as a talent with 3D table art while one is free (SETTINGS.botTalents).
-  const drawn = bot ? open.filter((symbol) => SETTINGS.botTalents.includes(symbol)) : [];
-  const free = drawn.length ? drawn : open;
+  const free = talentSymbols.filter((symbol) => !taken.has(symbol));
   if (!free.length) return wanted ?? null;
   const index = salt === null ? randomInt(free.length) : Number(salt) % free.length;
   return free[index];
@@ -158,7 +155,7 @@ function botSeat(table, level) {
     username: names[randomInt(names.length)],
     profile_color: "#8a94a6",
     profile_picture_url: null,
-    talent: talentFor(table, null, null, { bot: true }),
+    talent: talentFor(table, null, null),
     rating: SETTINGS.botRatings[level] ?? null,
     rank: null,
     bot: level,
@@ -609,10 +606,7 @@ function freeTalents(table) {
   return table.select.roster.filter((symbol) => !taken.has(symbol));
 }
 
-/**
- * A talent for a seat that hasn't picked: a player's oshi if it's free. A bot takes one with 3D table
- * art if any is free (SETTINGS.botTalents), preferring one not seen lately; anyone else, any free one.
- */
+/** A talent for a seat that hasn't picked: a player's oshi if it's free; a bot one not seen lately; else any free one. */
 function autoPick(table, seat) {
   if (seat.talent) return;
   const free = freeTalents(table);
@@ -621,10 +615,8 @@ function autoPick(table, seat) {
     seat.talent = seat.oshi;
     return;
   }
-  const drawn = seat.bot ? free.filter((symbol) => SETTINGS.botTalents.includes(symbol)) : [];
-  const pool = drawn.length ? drawn : free;
-  const fresh = seat.bot ? pool.filter((symbol) => !recentTalents.includes(symbol)) : [];
-  const choices = fresh.length ? fresh : pool;
+  const fresh = seat.bot ? free.filter((symbol) => !recentTalents.includes(symbol)) : [];
+  const choices = fresh.length ? fresh : free;
   seat.talent = choices[randomInt(choices.length)];
 }
 
@@ -905,6 +897,17 @@ function releaseUser(table, seat) {
   if (seat?.user_id && userTables.get(seat.user_id) === table.id) userTables.delete(seat.user_id);
 }
 
+/**
+ * A seat its player walked away from (`left`) stays theirs on autopilot, but they were let go to play
+ * elsewhere. Taking it back makes it their one live seat again, unless they now sit somewhere else.
+ */
+function rejoin(table, seat) {
+  if (!seat.left || !seat.user_id) return;
+  const current = tableOfUser(seat.user_id);
+  if (current && current !== table) throw tableError("already_seated", { table_id: current.id });
+  userTables.set(seat.user_id, table.id);
+}
+
 function discard(table) {
   if (tables.get(table.id) !== table) return;
   clearTimeout(table.timer);
@@ -1153,6 +1156,8 @@ async function leaveTable({ userId = null, token = null, tableId }) {
       }
       seat.away = true;
       seat.left = true;
+      // They're free to play elsewhere; the seat plays on without them.
+      releaseUser(table, seat);
       if (!seat.talent) autoPick(table, seat);
       table.select.ready[index] = true;
       checkAllReady(table);
@@ -1185,6 +1190,8 @@ async function leaveTable({ userId = null, token = null, tableId }) {
       }
       seat.away = true;
       seat.left = true;
+      // They're free to play elsewhere; the seat plays on without them.
+      releaseUser(table, seat);
       changed(table);
     }
     return { ok: true };
@@ -1234,6 +1241,7 @@ async function actOnTable({ userId = null, token = null, tableId, action }) {
     if (table.status !== "playing" || table.between || !table.game.hand) throw tableError("invalid_action");
     const hand = table.game.hand;
     const seat = table.seats[index];
+    rejoin(table, seat);
     const raw = { ...(action || {}) };
     // "pon" or "chi" with no tiles named means the only way it could be made.
     if ((raw.type === "pon" || raw.type === "chi") && !Array.isArray(raw.tiles)) {
@@ -1272,6 +1280,7 @@ async function returnToSeat({ userId = null, token = null, tableId }) {
     if (index < 0) throw tableError("forbidden");
     const seat = table.seats[index];
     if (seat.away) {
+      rejoin(table, seat);
       seat.away = false;
       seat.left = false;
       seat.timeouts = 0;

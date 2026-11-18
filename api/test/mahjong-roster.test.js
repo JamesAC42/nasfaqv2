@@ -9,3 +9,12 @@ test("mahjong seats never take an excluded talent", () => {
   assert.deepEqual(seatableTalents(["AME", "BYS", "GUR", "PEK"]), ["AME", "GUR", "PEK"]);
   assert.deepEqual(seatableTalents([]), []);
 });
+
+// Only the talents with 3D table art are offered, once a listing has a table's worth of them.
+test("mahjong seats take only the talents with table art", () => {
+  assert.equal(SETTINGS.tableTalents.length, 36);
+  assert.ok(!SETTINGS.tableTalents.includes("BYS"));
+  assert.deepEqual(seatableTalents(["AKI", "AME", "BYS", "GUR", "LAP", "PEK", "SUI"]), ["AME", "GUR", "PEK", "SUI"]);
+  // A listing without four of them (a test database) offers everyone but the excluded.
+  assert.deepEqual(seatableTalents(["AAA", "AME", "BBB", "BYS"]), ["AAA", "AME", "BBB"]);
+});

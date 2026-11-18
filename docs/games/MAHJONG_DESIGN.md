@@ -148,11 +148,12 @@ These rules follow the mainstream online defaults: Mahjong Soul's ranked rules, 
 - **Channels** on `/api/games/ws`: `mahjong:{id}` (public table), `mj-seat:{token}` (one seat's
   private view; the token is handed to that player over HTTP and is the only thing that opens it),
   `lobby:mahjong`, `reactions:mahjong:{id}`, `mahjong-tournament:{id}`. Moves go over HTTP.
-- **Clock.** Each move has a few seconds plus a time bank that refills every hand (standard: 7 s and
-  20 s; relaxed: 20 s and 40 s). When it runs out the drawn tile is discarded and calls are passed.
+- **Clock.** Each move has a few seconds plus a time bank that refills every hand (standard: 10 s and
+  30 s; relaxed: 20 s and 60 s). When it runs out the drawn tile is discarded and calls are passed.
 - **Away seats.** Two timeouts in a row, or leaving, puts the seat on autopilot until the player
-  acts again. On free tables autopilot is a bot. On paid tables it only discards what it draws, so
-  walking away can never beat playing.
+  acts again. Leaving lets the player sit elsewhere at once; coming back to the table takes the seat
+  back unless they now sit somewhere else. On free tables autopilot is a bot. On paid tables it only
+  discards what it draws, so walking away can never beat playing.
 - **Reconnecting** is just loading the page: the seat view is the whole state.
 - **Bots** (`mahjong/bot.js`) fill empty seats on free tables: three levels, all playing from what a
   player in that seat can see. A table that started with a bot seat never pays anyone anything.

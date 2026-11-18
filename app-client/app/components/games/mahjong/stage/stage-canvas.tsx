@@ -378,8 +378,8 @@ function CameraRig() {
         scratch.set(...anchorWorld(kind, seat, narrow)).project(camera);
         let x = ((scratch.x + 1) / 2) * size.width;
         const y = ((1 - scratch.y) / 2) * size.height;
-        // A plate is centered on its point: keep all of it inside the frame.
-        if (kind === "plate") {
+        // A plate is centered on its point, and an opponent's stamp stands on its plate: keep all of either inside the frame.
+        if (kind === "plate" || (kind === "stamp" && seat !== 0)) {
           const half = ((el.firstElementChild as HTMLElement | null)?.offsetWidth ?? 0) / 2;
           x = Math.min(Math.max(x, half + 6), Math.max(half + 6, size.width - half - 6));
         }

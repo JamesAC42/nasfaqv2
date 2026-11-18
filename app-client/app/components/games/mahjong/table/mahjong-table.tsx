@@ -140,6 +140,8 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
   const [leaving, setLeaving] = useState(false);
   const [working, setWorking] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Sitting down here ran into a seat at another table: which one.
+  const [elsewhere, setElsewhere] = useState<number | null>(null);
   const [callouts, pushCallout] = useCallouts();
   const busyRef = useRef(false);
 
@@ -380,14 +382,16 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
       const code = apiErrorCode(caught);
       const tableIdHeld = (caught as { body?: { table_id?: unknown } })?.body?.table_id;
       if (code === "already_seated" && typeof tableIdHeld === "number") {
-        router.push(`/games/mahjong/table/${tableIdHeld}`);
+        // Sitting down here: say so and let them choose. Anything else: take them to their seat.
+        if (key === "sit" && tableIdHeld !== tableId) setElsewhere(tableIdHeld);
+        else router.push(`/games/mahjong/table/${tableIdHeld}`);
         return;
       }
       setNotice(gameErrorText(caught));
     } finally {
       setWorking(null);
     }
-  }, [router]);
+  }, [router, tableId]);
 
   const enter = useCallback(
     (response: SeatedResponse) => {
@@ -399,6 +403,20 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
 
   const onSit = () =>
     void run("sit", async () => {
+      setElsewhere(null);
+      const response = await sitMahjongTable(tableId);
+      take(response.seat, response.table);
+    });
+  // Leave the other table (it plays on without them) and sit here.
+  const onLeaveElsewhere = () =>
+    void run("sit", async () => {
+      if (elsewhere !== null) {
+        await leaveMahjongTable(elsewhere).catch((caught) => {
+          if (apiErrorCode(caught) !== "table_not_found") throw caught;
+        });
+        forgetSeatToken(elsewhere);
+      }
+      setElsewhere(null);
       const response = await sitMahjongTable(tableId);
       take(response.seat, response.table);
     });
@@ -513,6 +531,8 @@ export function MahjongTablePage({ tableId }: { tableId: number }) {
         onSit={onSit}
         onLeave={onLeave}
         onStart={onStart}
+        elsewhere={elsewhere}
+        onLeaveElsewhere={onLeaveElsewhere}
       />,
       title,
     );

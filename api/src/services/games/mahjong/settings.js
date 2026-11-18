@@ -40,14 +40,14 @@ const SETTINGS = Object.freeze({
   },
 
   /**
-   * Talents with 3D table art: the launch set of 36 (the most held, FuwaMoco aside), whose half-body
-   * portraits are the art manifest's `SYM/half/<mood>` entries. Bots pick from these first, so a table
-   * shows drawn figures rather than fallback cards. MAHJONG_BOT_TALENTS, comma-separated tickers; empty
-   * means no preference.
+   * The talents a mahjong seat may take: the launch set of 36 (the most held, FuwaMoco aside), the ones
+   * with 3D table art (the art manifest's `SYM/half/<mood>` half-body portraits). Players pick from
+   * these on the select screen and bots sit as them, so every seat shows a drawn figure rather than a
+   * fallback card. MAHJONG_TABLE_TALENTS, comma-separated tickers; empty means every listed talent.
    */
-  botTalents: Object.freeze(
+  tableTalents: Object.freeze(
     String(
-      process.env.MAHJONG_BOT_TALENTS ??
+      process.env.MAHJONG_TABLE_TALENTS ??
         "HAT,SUI,MMR,KRN,KND,KYR,MAR,RYS,LAM,BLZ,FLR,INA,BIJ,PNT,KRE,MIK,AME,MRN,AYA,PEK,BLD,MUM,CLI,KRA,GUR,AZK,TOW,NEN,BOT,ZET,VIV,RBC,LUN,AQU,RVN,COC",
     )
       .split(",")
@@ -122,8 +122,8 @@ const SETTINGS = Object.freeze({
 
 /** The move clocks: seconds per move, and the bank a seat can dip into over one hand. */
 const SPEEDS = Object.freeze({
-  standard: Object.freeze({ turn: 7, bank: 20 }),
-  relaxed: Object.freeze({ turn: 20, bank: 40 }),
+  standard: Object.freeze({ turn: 10, bank: 30 }),
+  relaxed: Object.freeze({ turn: 20, bank: 60 }),
   // The tutorial and practice against bots: nobody is waiting on you.
   untimed: Object.freeze({ turn: 180, bank: 0 }),
 });
@@ -186,7 +186,15 @@ function publicRules() {
   };
 }
 
-/** The listed talents a mahjong seat may take: everyone but SETTINGS.excludedTalents. */
-const seatableTalents = (symbols) => symbols.filter((symbol) => !SETTINGS.excludedTalents.includes(symbol));
+/**
+ * The listed talents a mahjong seat may take: SETTINGS.tableTalents, never SETTINGS.excludedTalents.
+ * A listing with fewer than a table's worth of them (a test database, a short list) offers every
+ * listed talent but the excluded ones instead.
+ */
+function seatableTalents(symbols) {
+  const allowed = symbols.filter((symbol) => !SETTINGS.excludedTalents.includes(symbol));
+  const drawn = allowed.filter((symbol) => SETTINGS.tableTalents.includes(symbol));
+  return drawn.length >= 4 ? drawn : allowed;
+}
 
 module.exports = { RANKED_AFTER_GAMES, RANKS, SETTINGS, SPEEDS, chipResults, publicRules, rankFor, seatableTalents, setTrialForTests, stakesPrizeTable, tournamentPrizeTable };

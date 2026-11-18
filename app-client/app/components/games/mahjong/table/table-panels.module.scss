@@ -38,6 +38,41 @@
   color: var(--down);
 }
 
+.elsewhere {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--warn);
+  background: var(--warn-wash);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.elsewhereActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+
+  a,
+  button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--blue);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
 .nudge {
   margin: 0;
   font-size: 0.82rem;

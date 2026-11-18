@@ -39,8 +39,8 @@ export function anchorWorld(kind: AnchorKind, seat: number, narrow: number): Vec
     // Yours pops on the felt in front of you, in the gap between your discards and the next player's,
     // clear of every face at any width.
     if (seat === 0) return [19, 5, 19];
-    // An opponent's sits on the rim's line in front of them, over the chest and clear of the face.
-    return [spot.p[0], TABLE.lip - 2, spot.p[2]];
+    // An opponent's shares their nameplate's point and stands on top of it (the CSS lifts it above).
+    return anchorWorld("plate", seat, narrow);
   }
   // Cheers float up beside the portrait's head, on the side toward the middle of the screen.
   // On a phone the three sit in a row, so cheers rise from above each head instead.

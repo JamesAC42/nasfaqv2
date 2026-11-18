@@ -15,7 +15,8 @@ import { apiErrorCode, type ApiError } from "@/app/lib/api";
 import { fmtInteger, fmtNumber } from "@/app/lib/format";
 import { gameErrorText } from "@/app/lib/games/errors";
 import { chipsLine, fmtChips, hasPlayedHere, markPlayedHere } from "@/app/lib/games/mahjong/chips";
-import { createGuestTable, createMahjongTable, fetchMahjongLobby, fetchMahjongMe, fetchTournaments, mahjongChannels, sitMahjongTable } from "@/app/lib/games/mahjong/api";
+import { createGuestTable, createMahjongTable, fetchMahjongLobby, fetchMahjongMe, fetchTournaments, leaveMahjongTable, mahjongChannels, sitMahjongTable } from "@/app/lib/games/mahjong/api";
+import { forgetSeatToken } from "@/app/lib/games/mahjong/seat-token";
 import type { BotLevel, GameLength, LobbyPush, LobbyResponse, MeResponse, SeatedResponse, Speed, TournamentSummary } from "@/app/lib/games/mahjong/types";
 import { primeChannel, useGamesChannel, useGamesConnected, useSeedChannel } from "@/app/lib/games/use-games-socket";
 import { useNow } from "@/app/lib/use-now";
@@ -100,7 +101,8 @@ export function MahjongLobby() {
   const [stakesLength, setStakesLength] = useState<GameLength>("east");
   const [busy, setBusy] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [seatedAt, setSeatedAt] = useState<number | null>(null);
+  // Already at a table: where, and the button that ran into it, so the note shows under that button.
+  const [seatedAt, setSeatedAt] = useState<{ key: string; tableId: number; retry: () => void } | null>(null);
 
   const enter = (response: SeatedResponse) => {
     primeChannel(response.seat.channel, { type: "mahjong", table: response.table, server_time: response.table.server_time });
@@ -119,13 +121,52 @@ export function MahjongLobby() {
       // Already at a table: say so and offer the way back, rather than quietly opening it.
       const tableId = (error as Partial<ApiError>)?.body?.table_id;
       if (apiErrorCode(error) === "already_seated" && typeof tableId === "number" && Number.isSafeInteger(tableId) && tableId > 0) {
-        setSeatedAt(tableId);
+        setSeatedAt({ key, tableId, retry: () => void run(key, make) });
         setBusy(null);
         return;
       }
       setErrors({ [key]: gameErrorText(error) });
       setBusy(null);
     }
+  };
+
+  // Leave the other table (it plays on without you) and try again.
+  const leaveAndRetry = async () => {
+    if (!seatedAt) return;
+    const { key, tableId, retry } = seatedAt;
+    setBusy(key);
+    try {
+      await leaveMahjongTable(tableId);
+      forgetSeatToken(tableId);
+    } catch (error) {
+      if (apiErrorCode(error) !== "table_not_found") {
+        setSeatedAt(null);
+        setErrors({ [key]: gameErrorText(error) });
+        setBusy(null);
+        return;
+      }
+    }
+    retry();
+  };
+
+  /** What went wrong under the button that was pressed. */
+  const note = (key: string) => {
+    if (seatedAt?.key === key) {
+      return (
+        <div className={styles.seatedNote} role="alert">
+          <span>You’re still seated at another table.</span>
+          <span className={styles.seatedActions}>
+            <Link href={`/games/mahjong/table/${encodeURIComponent(String(seatedAt.tableId))}`}>
+              Go to that table <FiArrowRight aria-hidden="true" />
+            </Link>
+            <button type="button" onClick={() => void leaveAndRetry()} disabled={busy !== null}>
+              Leave it and start this
+            </button>
+          </span>
+        </div>
+      );
+    }
+    return errors[key] ? <p className={styles.error}>{errors[key]}</p> : null;
   };
 
   const practice = () => run("practice", () => createMahjongTable({ kind: "practice", length: practiceLength, level, speed: practiceSpeed }));
@@ -170,14 +211,6 @@ export function MahjongLobby() {
       }
     >
       <div className={styles.page}>
-        {seatedAt !== null ? (
-          <div className={styles.seatedNote} role="alert">
-            <span>You’re still seated at another table.</span>
-            <Link href={`/games/mahjong/table/${encodeURIComponent(String(seatedAt))}`}>
-              Go to that table <FiArrowRight aria-hidden="true" />
-            </Link>
-          </div>
-        ) : null}
         {myTable ? (
           <Link href={`/games/mahjong/table/${myTable.id}`} className={styles.back}>
             <i aria-hidden="true" />
@@ -211,7 +244,7 @@ export function MahjongLobby() {
               <button type="button" className={styles.primary} disabled={busy === "first" || !initialized} onClick={firstHand}>
                 {busy === "first" ? "Dealing…" : "Play your first hand"}
               </button>
-              {errors.first ? <p className={styles.error}>{errors.first}</p> : null}
+              {note("first")}
               <p className={styles.firstLinks}>
                 New to the game? <Link href="/games/mahjong/learn/tutorial">Walkthrough</Link> · <Link href="/games/mahjong/learn/easy-patterns">Five easy patterns</Link> · <Link href="/games/mahjong/learn/rules">Rules</Link>
               </p>
@@ -273,7 +306,7 @@ export function MahjongLobby() {
                 {busy === "guest" ? "Dealing…" : "Try a practice hand"}
               </button>
             )}
-            {errors.guest ? <p className={styles.error}>{errors.guest}</p> : null}
+            {note("guest")}
           </div>
         ) : null}
         {loadError && !tables ? <p className={styles.empty}>Couldn’t reach the tables ({loadError}).</p> : null}
@@ -319,7 +352,7 @@ export function MahjongLobby() {
               </div>
               <div className={styles.modeFoot}>
                 {signedIn && !verified ? <p className={styles.note}>Verify your email to sit with other players.</p> : null}
-                {errors.quick ? <p className={styles.error}>{errors.quick}</p> : null}
+                {note("quick")}
                 <button type="button" className={styles.primary} disabled={!signedIn || !verified || busy === "quick"} onClick={quick}>
                   {busy === "quick" ? "Finding a seat…" : "Find a game"}
                 </button>
@@ -353,7 +386,7 @@ export function MahjongLobby() {
               </div>
               <div className={styles.modeFoot}>
                 {!signedIn ? <p className={styles.note}>Signed out? Use “Try a practice hand” above.</p> : null}
-                {errors.practice ? <p className={styles.error}>{errors.practice}</p> : null}
+                {note("practice")}
                 <button type="button" className={styles.primary} disabled={!signedIn || busy === "practice"} onClick={practice}>
                   {busy === "practice" ? "Dealing…" : "Practice"}
                 </button>
@@ -390,7 +423,7 @@ export function MahjongLobby() {
                 </label>
               </div>
               <div className={styles.modeFoot}>
-                {errors.friend ? <p className={styles.error}>{errors.friend}</p> : null}
+                {note("friend")}
                 <button type="button" className={styles.primary} disabled={!signedIn || !verified || busy === "friend"} onClick={friend}>
                   {busy === "friend" ? "Opening…" : "Create room"}
                 </button>
@@ -465,7 +498,7 @@ export function MahjongLobby() {
                         </button>
                       </div>
                       {block ? <p className={styles.note}>{block}</p> : null}
-                      {errors[key] ? <p className={styles.error}>{errors[key]}</p> : null}
+                      {note(key)}
                     </li>
                   );
                 }
@@ -495,7 +528,7 @@ export function MahjongLobby() {
                       </button>
                     </div>
                     {block ? <p className={styles.note}>{block}</p> : null}
-                    {errors[key] ? <p className={styles.error}>{errors[key]}</p> : null}
+                    {note(key)}
                   </li>
                 );
               })}
@@ -522,6 +555,7 @@ export function MahjongLobby() {
             <p className={styles.empty}>No one at the tables right now. Open a quick match and the seats start filling.</p>
           )}
           {Object.entries(errors).map(([key, text]) => (key.startsWith("sit-") ? <p key={key} className={styles.error}>{text}</p> : null))}
+          {seatedAt?.key.startsWith("sit-") ? note(seatedAt.key) : null}
         </section>
 
         <section className={styles.section} aria-labelledby="mj-tournaments">

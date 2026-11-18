@@ -30,10 +30,13 @@ export type WaitingRoomProps = {
   onSit: () => void;
   onLeave: () => void;
   onStart: () => void;
+  /** The table they're seated at instead, when sitting here ran into it. */
+  elsewhere?: number | null;
+  onLeaveElsewhere?: () => void;
 };
 
 /** A table that hasn't dealt: who is here, when it starts, how to bring a friend, how to leave. */
-export function WaitingRoom({ table, seatStyles, mySeat, userId, signedIn, verified, busy, error, onSit, onLeave, onStart }: WaitingRoomProps) {
+export function WaitingRoom({ table, seatStyles, mySeat, userId, signedIn, verified, busy, error, onSit, onLeave, onStart, elsewhere = null, onLeaveElsewhere }: WaitingRoomProps) {
   const [copied, setCopied] = useState(false);
   const toStart = useRemaining(table.starts_at, 500);
   const toClose = useRemaining(table.expires_at, 1000);
@@ -109,6 +112,17 @@ export function WaitingRoom({ table, seatStyles, mySeat, userId, signedIn, verif
       ) : null}
 
       {error ? <p className={styles.error}>{error}</p> : null}
+      {elsewhere !== null && !seated ? (
+        <div className={styles.elsewhere} role="alert">
+          <span>You’re still seated at another table, so you can’t sit here yet.</span>
+          <span className={styles.elsewhereActions}>
+            <Link href={`/games/mahjong/table/${encodeURIComponent(String(elsewhere))}`}>Go to that table</Link>
+            <button type="button" onClick={onLeaveElsewhere} disabled={busy !== null}>
+              {busy === "sit" ? "Sitting…" : "Leave it and sit here"}
+            </button>
+          </span>
+        </div>
+      ) : null}
       <div className={styles.overLinks}>
         {isHost && table.kind === "friend" ? (
           <button type="button" className={styles.next} onClick={onStart} disabled={busy !== null}>
